@@ -1,113 +1,115 @@
-require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+app.use(express.json());
+app.use(cors());
+
+// --- Database Connection ---
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/edupulse-registry';
 
-app.use(cors());
-app.use(express.json());
+mongoose.connect(MONGO_URI)
+    .then(() => console.log('📦 Connected to MAIN Registry MongoDB'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// ============================================
-// Target Schema — monitoring targets
-// ============================================
-const targetSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    url: { type: String, required: true },
-    healthEndpoint: { type: String, default: '/health' },
-    thresholds: {
-        maxLatencyMs: { type: Number, default: 2000 },
-        maxErrorRate: { type: Number, default: 0.1 },
-        maxConcurrent: { type: Number, default: 500 },
-    },
-    registrationWindow: {
-        startTime: { type: String },  // e.g. "07:00"
-        endTime: { type: String },    // e.g. "09:00"
-        days: [{ type: String }],     // e.g. ["Monday", "Tuesday"]
-    },
-    isActive: { type: Boolean, default: true },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
-});
+// --- Database Schemas & Models ---
+// 1. Khóa học (Courses)
+const courseSchema = new mongoose.Schema({
+    courseId: { type: String, required: true, unique: true },
+    courseName: { type: String, required: true },
+    maxSlots: { type: Number, required: true },
+    currentEnrolled: { type: Number, default: 0 },
+    status: { type: String, enum: ['OPEN', 'FULL', 'CLOSED'], default: 'OPEN' }
+}, { timestamps: true });
 
-const Target = mongoose.model('Target', targetSchema);
+const Course = mongoose.model('Course', courseSchema);
 
-// ============================================
-// Routes
-// ============================================
+// 2. Đăng ký thành công (Registrations)
+const registrationSchema = new mongoose.Schema({
+    studentId: { type: String, required: true },
+    courseId: { type: String, required: true },
+    status: { type: String, enum: ['SUCCESS', 'CANCELLED'], default: 'SUCCESS' }
+}, { timestamps: true });
 
+// Đánh Index kép để chốt slot cực nhanh, tránh Race Condition
+registrationSchema.index({ studentId: 1, courseId: 1 }, { unique: true });
+
+const Registration = mongoose.model('Registration', registrationSchema);
+
+// --- APIs ---
+
+// 1. Health Check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'registry-service' });
+    res.json({ status: 'ok', service: 'registry-service', timestamp: new Date() });
 });
 
-// CRUD for targets
-app.get('/api/targets', async (req, res) => {
+// 2. Lấy danh sách khóa học (Dành cho Dashboard/Gateway)
+app.get('/api/courses', async (req, res) => {
     try {
-        const targets = await Target.find();
-        res.json(targets);
+        const courses = await Course.find();
+        res.json(courses);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-app.get('/api/targets/:id', async (req, res) => {
-    try {
-        const target = await Target.findById(req.params.id);
-        if (!target) return res.status(404).json({ error: 'Target not found' });
-        res.json(target);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+// 3. API Đăng Ký XỊN (Chỉ Frontend Xếp Hàng xong hoặc Gateway Gọi Tới)
+app.post('/api/enroll', async (req, res) => {
+    const { studentId, courseId } = req.body;
+    if (!studentId || !courseId) return res.status(400).json({ error: 'Missing Data' });
 
-app.post('/api/targets', async (req, res) => {
+    // Sử dụng transaction/session nếu cần, ở đây viết logic cơ bản
     try {
-        const target = new Target(req.body);
-        await target.save();
-        res.status(201).json(target);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
+        const course = await Course.findOne({ courseId });
+        if (!course) return res.status(404).json({ error: 'Course not found' });
 
-app.put('/api/targets/:id', async (req, res) => {
-    try {
-        const target = await Target.findByIdAndUpdate(
-            req.params.id,
-            { ...req.body, updatedAt: new Date() },
+        if (course.currentEnrolled >= course.maxSlots) {
+            // Khác với mock backend, API này trả về 400 (Bad request) nếu full, 
+            // vì Gateway đáng lẽ ko nên thả lố người vào
+            return res.status(400).json({ error: 'Course is strictly FULL' });
+        }
+
+        // Tăng slot bằng Atomic Update (Tránh xung đột)
+        const updatedCourse = await Course.findOneAndUpdate(
+            { courseId, currentEnrolled: { $lt: course.maxSlots } },
+            { $inc: { currentEnrolled: 1 } },
             { new: true }
         );
-        if (!target) return res.status(404).json({ error: 'Target not found' });
-        res.json(target);
+
+        if (!updatedCourse) {
+            return res.status(409).json({ error: 'Conflict: Slot just got taken' });
+        }
+
+        // Insert người dùng vào ds
+        const reg = new Registration({ studentId, courseId });
+        await reg.save();
+
+        res.status(201).json({ message: 'Enrolled successfully!', data: reg });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        // Lỗi trùng lặp dữ liệu (Đã đăng ký rồi) do index unique
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'Student already enrolled' });
+        }
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
-app.delete('/api/targets/:id', async (req, res) => {
-    try {
-        const target = await Target.findByIdAndDelete(req.params.id);
-        if (!target) return res.status(404).json({ error: 'Target not found' });
-        res.json({ message: 'Target deleted' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+// 4. API Seed Data ban đầu (Giống mock backend)
+app.post('/api/seed', async (req, res) => {
+    await Course.deleteMany({});
+    await Registration.deleteMany({});
+
+    const sampleCourses = [
+        { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 40 },
+        { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu', maxSlots: 35 },
+    ];
+
+    await Course.insertMany(sampleCourses);
+    res.json({ message: "Seeded Registry Main DB!" });
 });
 
-// ============================================
-// Start
-// ============================================
-mongoose
-    .connect(MONGO_URI)
-    .then(() => {
-        console.log('📦 Registry Service connected to MongoDB');
-        app.listen(PORT, () => {
-            console.log(`📋 Registry Service running on port ${PORT}`);
-        });
-    })
-    .catch((err) => {
-        console.error('❌ MongoDB connection error:', err.message);
-        process.exit(1);
-    });
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Core Registry Service running on port ${PORT}`));
