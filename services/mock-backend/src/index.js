@@ -65,6 +65,9 @@ app.post('/api/register', async (req, res) => {
     if (!studentId || studentId.trim() === '') {
       return res.status(400).json({ error: 'Registration student ID is missing or blank' });
     }
+    if (!courseId || courseId.trim() === '') {
+      return res.status(400).json({ error: 'Registration course ID is missing or blank' });
+    }
 
     const course = await Course.findOne({ courseId });
     if (!course) {
@@ -72,7 +75,7 @@ app.post('/api/register', async (req, res) => {
     }
 
     if (course.enrolled >= course.maxSlots) {
-      return res.status+(409).json({ error: 'Course is full' });
+      return res.status(409).json({ error: 'Course is full' });
     }
 
     // Intentional race condition — no atomic update
