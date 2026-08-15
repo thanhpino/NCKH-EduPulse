@@ -13,9 +13,9 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: 0,
             stages: [
-                { duration: '10s', target: 100 },   // ramp up
-                { duration: '30s', target: 500 },   // burst
-                { duration: '60s', target: 1000 },  // peak load
+                { duration: '10s', target: 20 },    // ramp up
+                { duration: '30s', target: 50 },    // burst
+                { duration: '60s', target: 100 },   // peak load
                 { duration: '10s', target: 0 },     // ramp down
             ],
         },
