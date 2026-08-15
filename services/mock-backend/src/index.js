@@ -142,7 +142,7 @@ app.post('/api/test-register', async (req, res) => {
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const baseUrl = `http://localhost:${PORT}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
 
     // Iterate through the array and send actual HTTP POST requests
     for (const regData of sampleRegs) {
