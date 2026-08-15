@@ -8,13 +8,17 @@
         "dev": "nodemon src/index.js"
     },
     "dependencies": {
-        "express": "^4.21.0",
-        "mongoose": "^8.5.0",
-        "cors": "^2.8.5",
-        "dotenv": "^16.4.5",
-        "joi": "^17.13.0"
+        "cors": "^2.8.6",
+        "dotenv": "^16.6.1",
+        "express": "^4.22.2",
+        "joi": "^17.13.0",
+        "mongoose": "^8.24.3"
     },
     "devDependencies": {
         "nodemon": "^3.1.4"
-    }
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs"
 }
