@@ -1,6 +1,4 @@
-# =========================================
-# EduPulse — Docker Compose (Development)
-# =========================================
+# EduPulse — Docker Compose
 
 services:
   # ---- Databases ----
@@ -109,8 +107,10 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3002
       - REDIS_URL=redis://redis-gateway:6379
-      - ADMISSION_RATE=${GATEWAY_ADMISSION_RATE:-50}
-      - QUEUE_TTL=${GATEWAY_QUEUE_TTL:-300}
+      - MOCK_BACKEND_URL=http://mock-backend:3010
+      - BATCH_SIZE=${GATEWAY_BATCH_SIZE:-50}
+      - TOKEN_TTL=${GATEWAY_TOKEN_TTL:-180}
+      - ADMISSION_INTERVAL=${GATEWAY_ADMISSION_INTERVAL:-2000}
     depends_on:
       - redis-gateway
       - mock-backend
