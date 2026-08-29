@@ -117,8 +117,9 @@ app.post('/api/seed', async (req, res) => {
 // ============================================
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('📦 Connected to MongoDB');
+    await Registration.syncIndexes();
     app.listen(PORT, () => {
       console.log(`🎯 Mock Backend running on port ${PORT}`);
       console.log(`⚠️  This service is intentionally unoptimized for demo purposes`);

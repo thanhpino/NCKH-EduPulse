@@ -1,8 +1,10 @@
 // Traffic Gateway - Redis Queue Module
-// Manages FIFO Fair Queue using Redis Sorted Sets per course, with instant ACTIVE token admission for the first 50 students when queue is empty.
+// Manages FIFO Fair Queue using Redis Sorted Sets per course, with atomic ACTIVE token admission for the first 50 students when queue is empty.
 
 const defaultConfig = require('./config');
 const tokenFactory = require('./token');
+
+
 
 /**
  * Creates and returns the Queue Manager instance.
@@ -18,10 +20,9 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
         /**
          * Enqueue or Directly Admit Student
          *
-         * RULE: If the current active concurrency for a course is below BATCH_SIZE (e.g. first 50 active students),
-         * the student bypasses the waiting queue and the PENDING_ENTRY phase, and is immediately issued an ACTIVE token.
-         *
-         * If active capacity is full (activeCount >= BATCH_SIZE), the student is enqueued into the Redis Sorted Set (FIFO by timestamp).
+         * ATOMIC RULE: If active concurrency for a course is below BATCH_SIZE,
+         * Lua script atomically issues an ACTIVE token and adds student to active set.
+         * If active capacity is full, student is enqueued into Redis Sorted Set (FIFO by timestamp).
          *
          * @param {string} ticketId - Unique ticket identifier
          * @param {string} courseId - Course ID
@@ -31,27 +32,28 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
         async enqueue(ticketId, courseId, metadata = {}) {
             const queueKey = `${config.QUEUE_PREFIX}${courseId}`;
 
-            // Clean up any expired tokens to get the accurate real-time active count
-            await tokenManager.cleanupExpired(courseId);
-            const activeCount = await tokenManager.getActiveCount(courseId);
+            // Atomic Direct Admission via tokenManager's Lua Script
+            const admitResult = await tokenManager.atomicAdmit(
+                ticketId,
+                courseId,
+                config.TOKEN_STATUS.ACTIVE,
+                metadata
+            );
 
-            // Direct admission condition: active concurrency is below BATCH_SIZE
-            if (activeCount < config.BATCH_SIZE) {
-                // Issue ACTIVE token directly — bypass waiting queue & skip PENDING_ENTRY
-                const activeToken = await tokenManager.createActiveToken(ticketId, courseId, metadata);
+            if (admitResult.admitted) {
                 return {
                     admitted: true,
                     directAdmission: true,
                     status: config.TOKEN_STATUS.ACTIVE,
                     ticketId,
                     courseId,
-                    token: activeToken,
-                    activeCount: activeCount + 1,
+                    token: admitResult.token,
+                    activeCount: admitResult.activeCount,
                     message: 'Capacity available. Direct ACTIVE token granted.',
                 };
             }
 
-            // Active capacity full (>= BATCH_SIZE): add student to Redis Sorted Set (FIFO by timestamp)
+            // Capacity full (>= BATCH_SIZE): add student to Redis Sorted Set (FIFO by timestamp)
             const score = Date.now();
             const pipeline = redis.pipeline();
             pipeline.zadd(queueKey, score, ticketId);
@@ -61,9 +63,9 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
             const position = await this.getPosition(ticketId, courseId);
             const totalInQueue = await this.getQueueLength(courseId);
 
-            // Admission rate calculation (BATCH_SIZE / interval in seconds)
-            const admissionRatePerSecond = config.BATCH_SIZE / (config.ADMISSION_INTERVAL / 1000);
-            const etaSeconds = Math.max(1, Math.ceil(position / (admissionRatePerSecond || 1)));
+            // Wave-based ETA calculation
+            const wavesNeeded = Math.ceil(position / config.BATCH_SIZE);
+            const etaSeconds = wavesNeeded * config.ACTIVE_TTL;
 
             return {
                 admitted: false,
@@ -168,10 +170,8 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
          * @returns {Promise<string[]>} Array of course IDs
          */
         async getActiveCourseIds() {
-            // First check the tracked active courses set
             const courseIds = await redis.smembers(config.COURSES_SET_KEY);
             if (courseIds && courseIds.length > 0) {
-                // Verify each course actually has elements; clean up any empty ones
                 const activeCourses = [];
                 for (const courseId of courseIds) {
                     const count = await this.getQueueLength(courseId);
@@ -184,7 +184,6 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
                 return activeCourses;
             }
 
-            // Fallback scan if COURSES_SET_KEY was not populated
             try {
                 const keys = await redis.keys(`${config.QUEUE_PREFIX}*`);
                 return keys.map((k) => k.replace(config.QUEUE_PREFIX, ''));
@@ -205,14 +204,14 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
                     this.getQueueLength(courseId),
                     tokenManager.getActiveCount(courseId),
                 ]);
-                const admissionRatePerSecond = config.BATCH_SIZE / (config.ADMISSION_INTERVAL / 1000);
+                const wavesNeeded = Math.ceil(queueLength / config.BATCH_SIZE);
                 return {
                     courseId,
                     queueLength,
                     activeCount,
                     batchSize: config.BATCH_SIZE,
                     admissionIntervalMs: config.ADMISSION_INTERVAL,
-                    estimatedClearSeconds: queueLength > 0 ? Math.ceil(queueLength / (admissionRatePerSecond || 1)) : 0,
+                    estimatedClearSeconds: wavesNeeded * config.ACTIVE_TTL,
                 };
             }
 

@@ -20,7 +20,7 @@ app.use(express.json());
 const redis = new Redis(config.REDIS_URL, {
     maxRetriesPerRequest: 3,
     retryStrategy: (times) => Math.min(times * 100, 2000),
-    enableOfflineQueue: false, // Fail immediately when Redis is down, allowing fallback middleware to handle cleanly
+    enableOfflineQueue: false, // Fail immediately when Redis is down
 });
 
 const logger = console;
@@ -37,15 +37,15 @@ let admission = null;
 try {
     const queueModule = require('./queue');
     const tokenModule = require('./token');
-    queue = queueModule(redis, config);
     token = tokenModule(redis, config);
+    queue = queueModule(redis, config, token);
     admission = admissionModule(redis, queue, token, logger);
 
     // Start background admission loop
     admission.startAdmissionLoop();
-    logger.info('Admission loop initialized');
+    logger.info('🚀 Admission loop initialized');
 } catch (err) {
-    logger.warn('queue.js or token.js failed to load (running in standby mode):', err.message);
+    logger.warn('⚠️  queue.js or token.js failed to load (running in standby mode):', err.message);
     if (err.stack && !err.message.includes('Cannot find module')) {
         logger.warn(err.stack); // Full stack trace if it's a code bug inside queue.js/token.js
     }
@@ -69,7 +69,7 @@ app.get('/api/courses', async (req, res) => {
     }
 });
 
-// 1. Join Queue — Enqueue student for a course
+// 1. Join Queue — Enqueue or Directly Admit student for a course
 app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
     if (!queue) {
         return res.status(503).json({ error: 'Queue service module not ready yet' });
@@ -82,26 +82,9 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
         }
 
         const ticketId = uuidv4();
-        await queue.enqueue(ticketId, courseId);
+        const result = await queue.enqueue(ticketId, courseId, { studentId });
 
-        const position = await queue.getPosition(ticketId, courseId);
-        const totalInQueue = await queue.getQueueLength(courseId);
-
-        // Wave-based ETA calculation (Waves needed * ACTIVE_TTL)
-        const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
-        const wavesNeeded = Math.ceil(position / batchSize);
-        const estimatedWaitSeconds = wavesNeeded * config.ACTIVE_TTL;
-
-        res.status(201).json({
-            ticketId,
-            studentId,
-            courseId,
-            position,
-            totalInQueue,
-            estimatedWaitSeconds,
-            status: 'waiting',
-            message: `You are #${position} in line for ${courseId}. Estimated wait: ~${estimatedWaitSeconds}s`,
-        });
+        res.status(201).json(result);
     } catch (err) {
         logger.error('Error in /api/queue/join:', err.message);
         res.status(500).json({ error: err.message });
@@ -118,13 +101,14 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
         const { ticketId } = req.params;
         const courseId = req.query.courseId;
 
-        // Check token first (if already admitted)
+        // Check token first (if already admitted or directly active)
         const tokenData = await token.verify(ticketId);
         if (tokenData) {
             return res.json({
                 ticketId,
                 status: tokenData.status, // PENDING_ENTRY or ACTIVE
                 courseId: tokenData.courseId,
+                token: tokenData,
                 message: tokenData.status === config.TOKEN_STATUS.PENDING_ENTRY
                     ? 'You have been admitted! Click "Enter Session" to start.'
                     : 'Your session is active. You can register.',
@@ -305,6 +289,7 @@ app.get('/api/queue/stats', async (req, res) => {
     try {
         const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
         const redisAlive = fallback.getStatus();
+        const queueStats = queue ? await queue.getQueueStats() : null;
 
         res.json({
             service: 'traffic-gateway',
@@ -315,6 +300,7 @@ app.get('/api/queue/stats', async (req, res) => {
             activeTTL: config.ACTIVE_TTL,
             timestamp: new Date().toISOString(),
             uptime: process.uptime(),
+            stats: queueStats,
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
