@@ -18,7 +18,7 @@ module.exports = {
     ADMISSION_INTERVAL: parseInt(process.env.ADMISSION_INTERVAL) || 2000,
 
     // 2-Phase Token TTL (seconds)
-    PENDING_ENTRY_TTL: parseInt(process.env.PENDING_ENTRY_TTL) || 300, // 5p — chờ SV kích hoạt session sau khi admit
+    PENDING_ENTRY_TTL: parseInt(process.env.PENDING_ENTRY_TTL) || 180, // 5p — chờ SV kích hoạt session sau khi admit
     ACTIVE_TTL: parseInt(process.env.ACTIVE_TTL) || 180,               // 3p — thời gian phiên làm việc active
     HEARTBEAT_INTERVAL: parseInt(process.env.HEARTBEAT_INTERVAL) || 20, // 20s — khoảng thời gian gửi heartbeat
 
