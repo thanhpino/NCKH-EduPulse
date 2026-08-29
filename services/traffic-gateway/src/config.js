@@ -17,11 +17,23 @@ module.exports = {
     BATCH_SIZE: parseInt(process.env.BATCH_SIZE) || 50,
     ADMISSION_INTERVAL: parseInt(process.env.ADMISSION_INTERVAL) || 2000,
 
-    // Token TTL
-    TOKEN_TTL: parseInt(process.env.TOKEN_TTL) || 180,
+    // 2-Phase Token TTL (seconds)
+    PENDING_ENTRY_TTL: parseInt(process.env.PENDING_ENTRY_TTL) || 300, // 5p — chờ SV kích hoạt session sau khi admit
+    ACTIVE_TTL: parseInt(process.env.ACTIVE_TTL) || 180,               // 3p — thời gian phiên làm việc active
+    HEARTBEAT_INTERVAL: parseInt(process.env.HEARTBEAT_INTERVAL) || 20, // 20s — khoảng thời gian gửi heartbeat
 
-    // Redis Key Prefixes
-    QUEUE_PREFIX: 'edupulse:queue:',
-    TOKEN_PREFIX: 'edupulse:token:',
-    ACTIVE_SET_PREFIX: 'edupulse:active:',
+    // Token Status Constants (Tránh bug chính tả giữa team)
+    TOKEN_STATUS: {
+        PENDING_ENTRY: 'PENDING_ENTRY',
+        ACTIVE: 'ACTIVE',
+    },
+
+    // Redis Key Prefixes & Sets
+    QUEUE_PREFIX: 'edupulse:queue:',            // edupulse:queue:{courseId}        → Sorted Set (không TTL — FIFO chờ vô hạn)
+    TOKEN_PREFIX: 'edupulse:token:',            // edupulse:token:{ticketId}        → String (JSON)
+    ACTIVE_SET_PREFIX: 'edupulse:active:',      // edupulse:active:{courseId}       → Set
+    COURSES_SET_KEY: 'edupulse:courses:active', // Set chứa danh sách courseId có queue (thay redis.keys())
+
+    // Redis Fallback
+    REDIS_PING_TIMEOUT: 2000, // ms
 };
