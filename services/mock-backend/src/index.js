@@ -142,7 +142,7 @@ app.post('/api/seed', async (req, res) => {
 
 // Populate testStudentSchema table with 4 test accounts
 // Passwords hashed directly inside the method
-const seedStudentsHandler = async (req, res) => {
+app.post('/api/seedtestStudents', async (req, res) => {
   try {
     await TestStudent.deleteMany({});
 
@@ -180,10 +180,10 @@ const seedStudentsHandler = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+});
 
-app.post('/api/seed-students', seedStudentsHandler);
-app.post('/api/students/seed', seedStudentsHandler);
+// app.post('/api/seed-students', seedStudentsHandler);
+// app.post('/api/students/seed', seedStudentsHandler);
 
 // Get all test students
 app.get('/api/test-students', async (req, res) => {
@@ -192,6 +192,57 @@ app.get('/api/test-students', async (req, res) => {
     res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Login endpoint: validate credentials against testStudentSchema
+app.post('/api/login', async (req, res) => {
+  try {
+    const { studentId, password } = req.body;
+    if (!studentId || !password) {
+      return res.status(400).json({ success: false, error: 'MSSV và mật khẩu không được để trống' });
+    }
+
+    // Auto-seed default test accounts if collection is currently empty
+    const studentCount = await TestStudent.countDocuments();
+    if (studentCount === 0) {
+      const defaultAccounts = [
+        { studentId: '52000001', password: 'Password123@' },
+        { studentId: '52000002', password: 'Password123@' },
+        { studentId: '52000003', password: 'Password123@' },
+        { studentId: '52000004', password: 'Password123@' },
+      ];
+      const seeded = defaultAccounts.map((acc) => ({
+        studentId: acc.studentId,
+        passwordHash: crypto
+          .createHash('sha256')
+          .update(acc.password)
+          .digest('hex'),
+      }));
+      await TestStudent.insertMany(seeded);
+    }
+
+    // Hash inputted password directly inside the method using SHA-256
+    const passwordHash = crypto
+      .createHash('sha256')
+      .update(password)
+      .digest('hex');
+
+    const student = await TestStudent.findOne({ studentId: String(studentId).trim() });
+    if (!student || student.passwordHash !== passwordHash) {
+      return res.status(401).json({
+        success: false,
+        error: 'MSSV hoặc mật khẩu không chính xác',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Đăng nhập thành công',
+      studentId: student.studentId,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

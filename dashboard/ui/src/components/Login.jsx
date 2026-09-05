@@ -2,17 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
+
 const TRANSLATIONS = {
   vi: {
     langCode: 'vi',
     portalTitle: ['EduPulse', 'Xin Chào'],
     greeting: 'XIN CHÀO!',
-    mssvPlaceholder: 'Nhập MSSV (VD: B2012345)',
+    mssvPlaceholder: 'Nhập MSSV',
     passwordPlaceholder: 'Nhập mật khẩu',
     submitButton: 'ĐĂNG NHẬP',
-    mssvInvalid: 'MSSV không hợp lệ (phải đủ 8 ký tự)',
+    loggingIn: 'ĐANG XỬ LÝ...',
+    mssvInvalid: 'MSSV không hợp lệ',
     passwordLengthError: 'Mật khẩu phải từ 8 ký tự trở lên',
     passwordValid: 'Mật khẩu hợp lệ',
+    authFailed: 'Thông tin tài khoản không tồn tại hoặc sai mật khẩu. Vui lòng đăng nhập lại!',
+    networkError: 'Không thể kết nối đến máy chủ xác thực. Vui lòng thử lại!',
     switchLangTooltip: 'Switch to English',
     togglePasswordShow: 'Hiện mật khẩu',
     togglePasswordHide: 'Ẩn mật khẩu',
@@ -22,12 +28,15 @@ const TRANSLATIONS = {
     langCode: 'en',
     portalTitle: ['EduPulse', 'Welcome'],
     greeting: 'WELCOME!',
-    mssvPlaceholder: 'Enter Student ID (e.g. B2012345)',
+    mssvPlaceholder: 'Enter Student ID',
     passwordPlaceholder: 'Enter password',
     submitButton: 'LOG IN',
-    mssvInvalid: 'Invalid Student ID (must be 8 chars)',
+    loggingIn: 'LOGGING IN...',
+    mssvInvalid: 'Invalid Student ID',
     passwordLengthError: 'Password must be at least 8 characters',
     passwordValid: 'Valid password',
+    authFailed: 'Account not found or password incorrect. Please log in again!',
+    networkError: 'Unable to connect to authentication server. Please try again!',
     switchLangTooltip: 'Chuyển sang Tiếng Việt',
     togglePasswordShow: 'Show password',
     togglePasswordHide: 'Hide password',
@@ -44,6 +53,7 @@ export default function Login() {
   const [mssvTouched, setMssvTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   const t = TRANSLATIONS[lang];
 
@@ -60,30 +70,66 @@ export default function Login() {
     const val = e.target.value.trim().slice(0, 8);
     setMssv(val);
     if (!mssvTouched) setMssvTouched(true);
+    if (authError) setAuthError('');
   };
 
   const handlePasswordChange = (e) => {
     setPassword(e.target.value);
     if (!passwordTouched) setPasswordTouched(true);
+    if (authError) setAuthError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setMssvTouched(true);
     setPasswordTouched(true);
+    setAuthError('');
 
-    if (isFormValid) {
-      setSubmitted(true);
-      setTimeout(() => {
-        navigate(`/register?mssv=${mssv}`);
-      }, 300);
+    if (!isFormValid) {
+      return;
+    }
+
+    setSubmitted(true);
+
+    try {
+      let res;
+      try {
+        res = await fetch(`${BACKEND_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId: mssv, password }),
+        });
+      } catch {
+        // Fallback to gateway if direct backend connection fails
+        res = await fetch(`${GATEWAY_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId: mssv, password }),
+        });
+      }
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        sessionStorage.setItem('studentId', mssv);
+        navigate(`/register?mssv=${encodeURIComponent(mssv)}`);
+      } else {
+        // Credentials do not match pre-existing records: prompt them to log in again
+        setAuthError(data.error || t.authFailed);
+        setPassword('');
+        setPasswordTouched(false);
+      }
+    } catch {
+      setAuthError(t.networkError);
+    } finally {
+      setSubmitted(false);
     }
   };
 
   return (
     <div className="login-wrapper">
       <div className="login-card">
-        {/* Left Branding Section (Red) */}
+        {/* Left Branding Section (Orange) */}
         <div className="brand-panel">
           {/* Portal Title */}
           <div className="portal-title">
@@ -140,6 +186,13 @@ export default function Login() {
 
           {/* Login Form */}
           <form className="login-form" onSubmit={handleSubmit} noValidate>
+            {/* Backend Authentication Error Alert */}
+            {authError && (
+              <div className="login-alert-error" role="alert">
+                <span>⚠ {authError}</span>
+              </div>
+            )}
+
             {/* MSSV Field */}
             <div className="form-group">
               <div
@@ -261,7 +314,7 @@ export default function Login() {
                 className="submit-btn"
                 disabled={submitted}
               >
-                {submitted ? '...' : t.submitButton}
+                {submitted ? t.loggingIn : t.submitButton}
               </button>
             </div>
           </form>

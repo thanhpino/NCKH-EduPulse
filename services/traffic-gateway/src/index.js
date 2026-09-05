@@ -84,6 +84,24 @@ app.get('/api/registrations', async (req, res) => {
     }
 });
 
+// 0.6. Student Login (Proxy to Mock Backend)
+app.post('/api/login', async (req, res) => {
+    try {
+        const url = `${config.MOCK_BACKEND_URL}/api/login`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(5000),
+        });
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        logger.error('Error proxying login to mock backend:', err.message);
+        res.status(502).json({ error: 'Failed to connect to authentication service' });
+    }
+});
+
 // 1. Join Queue — Enqueue student for a course
 app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
     if (!queue) {
