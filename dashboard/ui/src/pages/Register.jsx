@@ -253,8 +253,8 @@ export default function Register() {
                         onClick={handleRegister}
                         disabled={selectedCount === 0 || loading}
                         className={`px-5 py-2 rounded text-xs font-bold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0 || loading
-                                ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
-                                : 'bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
+                            ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                            : 'bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
                             }`}
                     >
                         {loading ? 'Đang gửi yêu cầu...' : `Đăng ký (${selectedCount})`}
@@ -264,8 +264,8 @@ export default function Register() {
                         onClick={() => setSelected(new Set())}
                         disabled={selectedCount === 0}
                         className={`px-4 py-2 rounded text-xs font-semibold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0
-                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                : 'bg-gradient-to-b from-gray-100 to-gray-200 hover:bg-gray-200 hover:shadow-md cursor-pointer'
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                            : 'bg-gradient-to-b from-gray-100 to-gray-200 hover:bg-gray-200 hover:shadow-md cursor-pointer'
                             }`}
                     >
                         Hủy chọn các môn
@@ -275,7 +275,7 @@ export default function Register() {
                 {/* Main Course Table (Standard TDTU Red Header Design) */}
                 <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
                     <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
-                        <span>DANH SÁCH MÔN HỌC MỞ LỚP ACCORDING TO STUDY PLAN</span>
+                        <span>DANH SÁCH MÔN HỌC MỞ LỚP</span>
                         <span className="text-[11px] font-normal text-amber-200">
                             Hiển thị: {courses.length} môn
                         </span>

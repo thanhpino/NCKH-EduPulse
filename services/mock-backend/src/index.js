@@ -121,19 +121,18 @@ app.get('/api/registrations', async (req, res) => {
 });
 
 // Seed sample courses 
+const sampleCourses = [
+  { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 120 },
+  { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu', maxSlots: 80 },
+  { courseId: 'CS301', courseName: 'Cơ sở Dữ liệu', maxSlots: 60 },
+  { courseId: 'CS401', courseName: 'Mạng Máy tính', maxSlots: 50 },
+  { courseId: 'CS501', courseName: 'Trí tuệ Nhân tạo', maxSlots: 40 },
+];
+
 app.post('/api/seed', async (req, res) => {
   try {
     await Course.deleteMany({});
     await Registration.deleteMany({});
-
-    const sampleCourses = [
-      { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 40 },
-      { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu', maxSlots: 35 },
-      { courseId: 'CS301', courseName: 'Cơ sở Dữ liệu', maxSlots: 30 },
-      { courseId: 'CS401', courseName: 'Mạng Máy tính', maxSlots: 25 },
-      { courseId: 'CS501', courseName: 'Trí tuệ Nhân tạo', maxSlots: 20 },
-    ];
-
     await Course.insertMany(sampleCourses);
     res.json({ message: 'Seeded successfully', count: sampleCourses.length });
   } catch (err) {
@@ -276,6 +275,13 @@ mongoose
   .then(async () => {
     console.log('📦 Connected to MongoDB');
     await Registration.syncIndexes();
+    for (const c of sampleCourses) {
+      await Course.updateOne(
+        { courseId: c.courseId },
+        { $set: { maxSlots: c.maxSlots, courseName: c.courseName } },
+        { upsert: true }
+      );
+    }
     app.listen(PORT, () => {
       console.log(`🎯 Mock Backend running on port ${PORT}`);
       console.log(`⚠️  This service is intentionally unoptimized for demo purposes`);

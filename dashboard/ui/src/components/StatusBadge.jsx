@@ -1,10 +1,11 @@
 /**
- * StatusBadge — Status Indicator per course row
+ * StatusBadge — Status Indicator per course row (Virtual Waiting Room)
  *
- * status: null         → Not requested yet
- * status: 'waiting'    → 🟡 Đang chờ #position · ~X phút
- * status: 'PENDING_ENTRY' | 'ACTIVE' → ⏳ Đang xử lý...
- * status: 'DONE'       → 🟢 Đã đăng ký
+ * status: null          → Not requested yet
+ * status: 'waiting'     → 🟡 Hàng đợi #position · ~X s/phút
+ * status: 'PENDING_ENTRY'→ ⚡ Đến lượt! (Cấp Token)
+ * status: 'ACTIVE'      → ⏳ Đang đăng ký...
+ * status: 'DONE'        → 🟢 Đã đăng ký
  */
 export default function StatusBadge({ status, position, eta }) {
     if (!status) return null;
@@ -18,18 +19,27 @@ export default function StatusBadge({ status, position, eta }) {
     }
 
     if (status === 'waiting') {
-        const minutes = eta ? Math.max(1, Math.ceil(eta / 60)) : 1;
-        const etaText = `~${minutes} phút`;
+        const seconds = eta ? Math.max(1, eta) : 2;
+        const etaText = seconds >= 60 ? `~${Math.ceil(seconds / 60)} phút` : `~${seconds}s`;
         return (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm animate-pulse">
-                🟡 Đang chờ {position ? `#${position}` : ''} · {etaText}
+                🟡 Hàng đợi {position ? `#${position}` : '#1'} · {etaText}
             </span>
         );
     }
 
+    if (status === 'PENDING_ENTRY') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-900 border border-purple-300 shadow-sm animate-pulse">
+                ⚡ Đến lượt! (Cấp Token)
+            </span>
+        );
+    }
+
+    // ACTIVE status
     return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-300">
-            ⏳ Đang xử lý...
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
+            ⏳ Đang đăng ký...
         </span>
     );
 }

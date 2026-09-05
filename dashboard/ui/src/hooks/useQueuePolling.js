@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 1500;
 
 /**
  * Custom hook — poll trạng thái hàng đợi + tự động advance qua các bước:
