@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Login.css';
 import logoImg from '../assets/logo.png';
 import catImg from '../assets/cat.png';
+import catEnImg from '../assets/cat_en.png';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
@@ -188,7 +189,11 @@ export default function Login() {
 
           {/* Bottom-Right Cat Graphic */}
           <div className="absolute bottom-4 right-4 pointer-events-none hidden md:block">
-            <img src={catImg} alt="Mascot Cat" className="w-48 h-auto object-contain" />
+            <img 
+              src={lang === 'vi' ? catImg : catEnImg} 
+              alt="Mascot Cat" 
+              className="w-48 h-auto object-contain" 
+            />
           </div>
         
 

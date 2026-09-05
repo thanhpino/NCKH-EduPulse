@@ -31,8 +31,8 @@
 /* Left Brand Panel (Orange) */
 .brand-panel {
   width: 38%;
-  background: #ea580c;
-  background: linear-gradient(145deg, #f97316 0%, #ea580c 100%);
+  background: #ea0c0c;
+  background: linear-gradient(145deg, #f92116 0%, #ca2020 100%);
   color: #ffffff;
   padding: 48px 32px;
   display: flex;
@@ -106,7 +106,7 @@
 }
 
 .flag-btn:focus-visible {
-  outline: 2px solid #ea580c;
+  outline: 2px solid #ea100c;
   outline-offset: 2px;
 }
 
@@ -130,7 +130,7 @@
   margin: 0;
   font-size: 26px;
   font-weight: 800;
-  color: #ea580c;
+  color: #ea0c0c;
   letter-spacing: 0.8px;
   text-transform: uppercase;
 }
@@ -163,7 +163,7 @@
 }
 
 .input-container:focus-within {
-  border-color: #ea580c;
+  border-color: #ea170c;
   box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.14);
 }
 
