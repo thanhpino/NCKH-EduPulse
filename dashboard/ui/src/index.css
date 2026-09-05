@@ -1,4 +1,10 @@
+@import "tailwindcss";
+
 :root {
+  --tdt-red: #E0001A;
+  --tdt-red-dark: #B8001A;
+  --tdt-blue: #003087;
+
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;

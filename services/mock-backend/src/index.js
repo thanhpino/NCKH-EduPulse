@@ -11,11 +11,10 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/mock-regis
 app.use(cors());
 app.use(express.json());
 
-// ============================================
 // Mock Course Registration Schema
 // Intentionally simple — NO connection pooling,
 // NO caching, NO rate limiting
-// ============================================
+
 const courseSchema = new mongoose.Schema({
   courseId: { type: String, required: true },
   courseName: { type: String, required: true },
@@ -29,12 +28,13 @@ const registrationSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 });
 
+// Compound unique index — đảm bảo 1 SV chỉ đăng ký 1 môn duy nhất 1 lần ở tầng DB (chống race condition)
+registrationSchema.index({ studentId: 1, courseId: 1 }, { unique: true });
+
 const Course = mongoose.model('Course', courseSchema);
 const Registration = mongoose.model('Registration', registrationSchema);
 
-// ============================================
 // Routes
-// ============================================
 
 // Health check
 app.get('/health', (req, res) => {
@@ -84,6 +84,21 @@ app.post('/api/register', async (req, res) => {
       position: course.enrolled,
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Student already registered for this course' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List registrations — dùng để verify flow end-to-end
+// Optional filter: ?studentId=B2012345
+app.get('/api/registrations', async (req, res) => {
+  try {
+    const filter = req.query.studentId ? { studentId: req.query.studentId } : {};
+    const registrations = await Registration.find(filter).sort({ timestamp: -1 });
+    res.json({ count: registrations.length, registrations });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -109,9 +124,7 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
-// ============================================
 // Start server
-// ============================================
 mongoose
   .connect(MONGO_URI)
   .then(() => {
