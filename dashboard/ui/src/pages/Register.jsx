@@ -413,9 +413,8 @@ export default function Register() {
                                 <tr>
                                     <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
                                     <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
-                                    <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC</th>
+                                    <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC & CHỌN NHÓM</th>
                                     <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
-                                    <th className="p-2 text-center border-r border-[#A31A1A] w-16">NHÓM</th>
                                     <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
                                     <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
                                     <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
@@ -425,7 +424,7 @@ export default function Register() {
                             <tbody>
                                 {courses.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="text-center py-8 text-gray-400">
+                                        <td colSpan={8} className="text-center py-8 text-gray-400">
                                             Đang tải danh sách môn học...
                                         </td>
                                     </tr>
