@@ -3,6 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import CourseRow from '../components/CourseRow';
 import ConfirmModal from '../components/ConfirmModal';
 import SuccessModal from '../components/SuccessModal';
+import InfoModal from '../components/InfoModal';
+import StudyPlanModal from '../components/StudyPlanModal';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
 
@@ -30,6 +32,9 @@ export default function Register() {
     const [resetMsg, setResetMsg] = useState('');
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('register'); // 'register' | 'plan' | 'info'
     const [successCount, setSuccessCount] = useState(0);
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
@@ -68,12 +73,31 @@ export default function Register() {
                     const period = periods[idx % periods.length];
                     const grp = String((idx % 5) + 1).padStart(2, '0');
 
+                    const courseGroups = [
+                        {
+                            group: '01',
+                            schedule: meta?.schedule || `${period}, ${day}, Phòng ${room}, ${week}`,
+                            instructor: meta?.instructor || inst,
+                        },
+                        {
+                            group: '02',
+                            schedule: `${periods[(idx + 1) % periods.length]}, ${days[(idx + 2) % days.length]}, Phòng ${rooms[(idx + 3) % rooms.length]}, ${weekPatterns[(idx + 1) % weekPatterns.length]}`,
+                            instructor: instructors[(idx + 2) % instructors.length],
+                        },
+                        {
+                            group: '03',
+                            schedule: `${periods[(idx + 2) % periods.length]}, ${days[(idx + 4) % days.length]}, Phòng ${rooms[(idx + 5) % rooms.length]}, ${weekPatterns[(idx + 2) % weekPatterns.length]}`,
+                            instructor: instructors[(idx + 4) % instructors.length],
+                        },
+                    ];
+
                     return {
                         ...c,
                         credits: meta?.credits || (c.courseId.includes('1203') ? 10 : (idx % 2 === 0 ? 3 : 4)),
                         group: meta?.group || grp,
-                        schedule: meta?.schedule || `${period}, ${day}, Phòng ${room}, ${week}`,
-                        instructor: meta?.instructor || inst,
+                        groups: courseGroups,
+                        schedule: courseGroups[0].schedule,
+                        instructor: courseGroups[0].instructor,
                     };
                 });
                 setCourses(enriched);
@@ -253,13 +277,26 @@ export default function Register() {
                         ĐĂNG KÝ MÔN HỌC
                     </span>
                     <div className="flex space-x-1">
-                        <button className="bg-[#00425C] px-3 py-1.5 rounded font-semibold border-b-2 border-amber-400 text-white transition-all">
+                        <button
+                            onClick={() => setActiveTab('register')}
+                            className={`px-3 py-1.5 rounded font-semibold transition-all cursor-pointer ${activeTab === 'register'
+                                ? 'bg-[#00425C] border-b-2 border-amber-400 text-white'
+                                : 'hover:bg-[#00425C]/60 text-gray-200'
+                                }`}
+                        >
                             Đăng ký môn học theo KHHT
                         </button>
-                        <button className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all">
-                            Kế hoạch học tập
+                        <button
+                            onClick={() => setIsPlanModalOpen(true)}
+                            className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all cursor-pointer flex items-center space-x-1"
+                        >
+                            <span>Kế hoạch học tập</span>
+                            <span className="bg-amber-400 text-blue-950 text-[9px] px-1 rounded font-bold">Mới</span>
                         </button>
-                        <button className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all">
+                        <button
+                            onClick={() => setIsInfoModalOpen(true)}
+                            className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all cursor-pointer"
+                        >
                             Thông tin
                         </button>
                     </div>
@@ -462,6 +499,21 @@ export default function Register() {
                 isOpen={isSuccessModalOpen}
                 onClose={() => setIsSuccessModalOpen(false)}
                 count={successCount}
+            />
+
+            {/* Software Info & Team Developer Modal */}
+            <InfoModal
+                isOpen={isInfoModalOpen}
+                onClose={() => setIsInfoModalOpen(false)}
+            />
+
+            {/* Study Plan (Kế hoạch học tập) Modal */}
+            <StudyPlanModal
+                isOpen={isPlanModalOpen}
+                onClose={() => setIsPlanModalOpen(false)}
+                studentId={mssv}
+                courses={courses}
+                onProceedToRegister={() => setActiveTab('register')}
             />
         </div>
     );
