@@ -61,6 +61,14 @@ app.post('/api/register', async (req, res) => {
     // Intentional: artificial delay to simulate slow DB
     await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
 
+    // Validate studentId
+    if (!studentId || studentId.trim() === '') {
+      return res.status(400).json({ error: 'Registration student ID is missing or blank' });
+    }
+    if (!courseId || courseId.trim() === '') {
+      return res.status(400).json({ error: 'Registration course ID is missing or blank' });
+    }
+
     const course = await Course.findOne({ courseId });
     if (!course) {
       return res.status(404).json({ error: 'Course not found' });
@@ -99,11 +107,14 @@ app.get('/api/registrations', async (req, res) => {
     const registrations = await Registration.find(filter).sort({ timestamp: -1 });
     res.json({ count: registrations.length, registrations });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Student already registered for this course' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
-// Seed sample courses
+// Seed sample courses 
 app.post('/api/seed', async (req, res) => {
   try {
     await Course.deleteMany({});
@@ -124,11 +135,86 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
+// Tests registration and outputs responses sequentially
+app.post('/api/test-register', async (req, res) => {
+  try {
+    await Registration.deleteMany({}); // Clear previous test data
+
+    const sampleRegs = [
+      { studentId: 'SV20210001', courseId: 'CS101' },
+      { studentId: 'SV20220055', courseId: 'CS201' },
+      { studentId: 'SV20230199', courseId: 'CS501' },
+      { studentId: '', courseId: 'CS101' },
+      { studentId: null, courseId: 'CS201' },
+      { studentId: '   ', courseId: 'CS301' },
+      { courseId: 'CS401' },
+      { studentId: 'SV20210002', courseId: '' },
+      { studentId: 'SV20210002', courseId: null },
+      { studentId: 'SV20210002', courseId: '   ' },
+      { studentId: 'SV20200888' },
+      { studentId: '', courseId: '' },
+      { studentId: 'SV20210001', courseId: 'INVALID999' }
+    ];
+
+    // Set headers for streaming chunked data
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // Iterate through the array and send actual HTTP POST requests
+    for (const regData of sampleRegs) {
+      let resultChunk;
+      try {
+        const response = await fetch(`${baseUrl}/api/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(regData)
+        });
+
+        const responseData = await response.json();
+
+        resultChunk = {
+          payload: regData,
+          status: response.status,
+          success: response.ok,
+          response: responseData
+        };
+      } catch (fetchErr) {
+        resultChunk = {
+          payload: regData,
+          success: false,
+          error: fetchErr.message
+        };
+      }
+
+      // Log to the server console
+      console.log(`[TEST-REGISTER] Processed: ${JSON.stringify(resultChunk)}`);
+
+      // Write immediately to the client connection
+      res.write(JSON.stringify(resultChunk) + '\n');
+    }
+
+    // Close the connection when the loop is done
+    res.end();
+
+  } catch (err) {
+    // If the headers were already sent, we can't use res.status()
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.end(JSON.stringify({ error: err.message }) + '\n');
+    }
+  }
+});
+
+// ============================================
 // Start server
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('📦 Connected to MongoDB');
+    await Registration.syncIndexes();
     app.listen(PORT, () => {
       console.log(`🎯 Mock Backend running on port ${PORT}`);
       console.log(`⚠️  This service is intentionally unoptimized for demo purposes`);

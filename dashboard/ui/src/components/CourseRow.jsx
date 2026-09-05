@@ -2,54 +2,68 @@ import { useQueuePolling } from '../hooks/useQueuePolling';
 import StatusBadge from './StatusBadge';
 
 /**
- * CourseRow — 1 dòng trong bảng môn học
- *
- * Props:
- *   course     : { courseId, courseName, maxSlots, enrolled }
- *   isSelected : boolean
- *   onToggle   : () => void
- *   cartEntry  : { ticketId, status } | undefined
- *   studentId  : string — MSSV, cần thiết cho bước /api/register
+ * CourseRow — Dòng môn học chuẩn giao diện Portal TDTU
  */
-export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId }) {
+export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex }) {
     const { status, position, eta } = useQueuePolling(
         cartEntry?.ticketId ?? null,
         course.courseId,
-        studentId,              // truyền xuống hook để gọi /api/register
+        studentId,
         cartEntry?.status ?? null
     );
 
     const isFull = course.enrolled >= course.maxSlots;
     const alreadyRegistered = status === 'DONE';
 
+    // Alternating background colors matching TDTU portal row styling
+    const rowBg = isSelected
+        ? 'bg-[#FFF9C4]' // Light yellow highlight when selected
+        : rowIndex % 2 === 0
+            ? 'bg-white'
+            : 'bg-[#FFFDF0]';
+
     return (
-        <tr className="border-b border-gray-200 hover:bg-gray-50 text-sm">
-            {/* Checkbox — disable sau khi đã đăng ký xong */}
-            <td className="px-3 py-2 text-center">
+        <tr className={`border-b border-[#E8DCDC] hover:bg-[#FFF9C4] transition-colors text-xs ${rowBg}`}>
+            {/* Checkbox */}
+            <td className="p-2 text-center border-r border-[#E8DCDC]">
                 <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={onToggle}
                     disabled={alreadyRegistered}
-                    className="accent-[#E0001A] cursor-pointer"
+                    className="accent-[#8C0000] cursor-pointer h-3.5 w-3.5"
                 />
             </td>
 
-            <td className="px-3 py-2 font-mono text-gray-700">{course.courseId}</td>
-            <td className="px-3 py-2 font-medium text-gray-800">{course.courseName}</td>
+            {/* Mã MH */}
+            <td className="p-2 font-mono font-medium text-gray-800 border-r border-[#E8DCDC]">{course.courseId}</td>
 
-            {/* Số TC — mock-backend không có trường tín chỉ, dùng 3 mặc định */}
-            <td className="px-3 py-2 text-center text-gray-600">3</td>
+            {/* Môn học */}
+            <td className="p-2 font-medium text-gray-900 border-r border-[#E8DCDC]">{course.courseName}</td>
 
-            {/* Sĩ số */}
-            <td className="px-3 py-2 text-center">
-                <span className={isFull ? 'text-red-500 font-semibold' : 'text-gray-600'}>
+            {/* Số TC */}
+            <td className="p-2 text-center text-gray-700 font-mono border-r border-[#E8DCDC]">{course.credits || 3}</td>
+
+            {/* Nhóm */}
+            <td className="p-2 text-center text-gray-700 font-mono border-r border-[#E8DCDC]">{course.group || '01'}</td>
+
+            {/* Sĩ số SL/Tối đa — Red if full/near full, Blue if available */}
+            <td className="p-2 text-center font-mono font-bold border-r border-[#E8DCDC]">
+                <span className={isFull ? 'text-[#D32F2F]' : 'text-[#1976D2]'}>
                     {course.enrolled}/{course.maxSlots}
                 </span>
             </td>
 
-            {/* Badge trạng thái — tự poll độc lập */}
-            <td className="px-3 py-2">
+            {/* Lịch học */}
+            <td className="p-2 text-gray-700 font-mono text-[11px] border-r border-[#E8DCDC]">
+                {course.schedule || '---012---, Thứ 4, Phòng C101'}
+            </td>
+
+            {/* Tên Giảng viên */}
+            <td className="p-2 text-gray-700 border-r border-[#E8DCDC]">{course.instructor || 'TS. Nguyễn Văn A'}</td>
+
+            {/* Status Badge Column */}
+            <td className="p-2">
                 <StatusBadge status={status} position={position} eta={eta} />
             </td>
         </tr>

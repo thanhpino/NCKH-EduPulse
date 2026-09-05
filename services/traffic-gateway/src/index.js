@@ -1,120 +1,116 @@
 // Traffic Shaping Gateway — Main Entry Point
 // EduPulse Microservice Gateway (Batch + 2-Phase Token + Fallback)
 
-require('dotenv').config();
 const express = require('express');
 const Redis = require('ioredis');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 
-const app = express();
-const PORT = process.env.PORT || 3002;
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3010';
-const MAX_ACTIVE_PER_COURSE = parseInt(process.env.MAX_ACTIVE_PER_COURSE) || 50;
-const ADMISSION_RATE = parseInt(process.env.ADMISSION_RATE) || 50; // requests/second for ETA calc
-const QUEUE_TTL = parseInt(process.env.QUEUE_TTL) || 300; // seconds
+const config = require('./config');
+const proxyModule = require('./proxy');
+const fallbackModule = require('./fallback');
+const admissionModule = require('./admission');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const redis = new Redis(REDIS_URL);
+// Initialize Redis client — fail-fast mode with offline queue disabled
+const redis = new Redis(config.REDIS_URL, {
+    maxRetriesPerRequest: 3,
+    retryStrategy: (times) => Math.min(times * 100, 2000),
+    enableOfflineQueue: false, // Fail immediately when Redis is down, allowing fallback middleware to handle cleanly
+});
 
-// Helper: Promote next student in queue for a course when slot frees up
-async function promoteNextInQueue(courseId) {
-    try {
-        const activeKey = `edupulse:active:${courseId}`;
-        const queueKey = `edupulse:waiting-room:${courseId}`;
+const logger = console;
 
-        const activeCount = await redis.scard(activeKey);
-        if (activeCount < MAX_ACTIVE_PER_COURSE) {
-            const popped = await redis.zpopmin(queueKey, 1);
-            if (popped && popped.length > 0) {
-                const ticketId = popped[0];
-                await redis.set(
-                    `ticket:${ticketId}`,
-                    JSON.stringify({ status: 'PENDING_ENTRY', courseId, promotedAt: new Date().toISOString() }),
-                    'EX',
-                    QUEUE_TTL
-                );
-                console.log(`🟢 Promoted ticket ${ticketId} for course ${courseId}`);
-            }
-        }
-    } catch (err) {
-        console.error(`[promoteNextInQueue] Error for ${courseId}:`, err.message);
+// Initialize proxy & fallback
+const proxy = proxyModule(logger);
+const fallback = fallbackModule(redis, proxy, logger);
+
+// Dynamically load queue & token modules
+let queue = null;
+let token = null;
+let admission = null;
+
+try {
+    const queueModule = require('./queue');
+    const tokenModule = require('./token');
+    queue = queueModule(redis, config);
+    token = tokenModule(redis, config);
+    admission = admissionModule(redis, queue, token, logger);
+
+    // Start background admission loop
+    admission.startAdmissionLoop();
+    logger.info('Admission loop initialized');
+} catch (err) {
+    logger.warn('queue.js or token.js failed to load (running in standby mode):', err.message);
+    if (err.stack && !err.message.includes('Cannot find module')) {
+        logger.warn(err.stack); // Full stack trace if it's a code bug inside queue.js/token.js
     }
 }
 
-// ============================================
-// Virtual Waiting Room — Core API
-// ============================================
+// Start Redis health check loop
+fallback.startHealthCheckLoop();
 
-// 1. Join queue for a course
-app.post('/api/queue/join', async (req, res) => {
+// ROUTES
+
+// 0. Get Courses List (Proxy to Mock Backend for Student UI)
+app.get('/api/courses', async (req, res) => {
+    try {
+        const url = `${config.MOCK_BACKEND_URL}/api/courses`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        logger.error('Error fetching courses from mock backend:', err.message);
+        res.status(502).json({ error: 'Failed to fetch course catalog' });
+    }
+});
+
+// 1. Join Queue — Enqueue student for a course
+app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
+    if (!queue) {
+        return res.status(503).json({ error: 'Queue service module not ready yet' });
+    }
+
     try {
         const { studentId, courseId } = req.body;
-        if (!courseId) {
-            return res.status(400).json({ error: 'courseId is required' });
+        if (!studentId || !courseId) {
+            return res.status(400).json({ error: 'studentId and courseId are required' });
         }
 
         const ticketId = uuidv4();
-        const score = Date.now();
-        const activeKey = `edupulse:active:${courseId}`;
-        const queueKey = `edupulse:waiting-room:${courseId}`;
+        const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
+        const result = await queue.enqueue(ticketId, courseId, { studentId }, batchSize);
 
-        const activeCount = await redis.scard(activeKey);
-        const waitingCount = await redis.zcard(queueKey);
-
-        // Direct admission if slots available and nobody waiting
-        if (activeCount < MAX_ACTIVE_PER_COURSE && waitingCount === 0) {
-            await redis.set(
-                `ticket:${ticketId}`,
-                JSON.stringify({
-                    studentId,
-                    courseId,
-                    createdAt: new Date().toISOString(),
-                    status: 'PENDING_ENTRY',
-                }),
-                'EX',
-                QUEUE_TTL
-            );
-
+        if (result && result.directAdmission) {
             return res.status(201).json({
                 ticketId,
+                studentId,
+                courseId,
                 directAdmission: true,
-                status: 'PENDING_ENTRY',
-                position: 0,
-                estimatedWaitSeconds: 0,
-                message: 'Direct admission granted.',
+                status: config.TOKEN_STATUS.ACTIVE,
+                message: 'Capacity available. Direct ACTIVE token granted.',
             });
         }
 
-        // Add to waiting queue
-        await redis.zadd(queueKey, score, ticketId);
-        await redis.set(
-            `ticket:${ticketId}`,
-            JSON.stringify({
-                studentId,
-                courseId,
-                createdAt: new Date().toISOString(),
-                status: 'waiting',
-            }),
-            'EX',
-            QUEUE_TTL
-        );
+        const position = await queue.getPosition(ticketId, courseId);
+        const totalInQueue = await queue.getQueueLength(courseId);
 
-        const position = (await redis.zrank(queueKey, ticketId)) + 1;
-        const eta = Math.ceil(position / ADMISSION_RATE);
+        // Wave-based ETA calculation (Waves needed * ACTIVE_TTL)
+        const wavesNeeded = Math.ceil(position / batchSize);
+        const estimatedWaitSeconds = wavesNeeded * config.ACTIVE_TTL;
 
         res.status(201).json({
             ticketId,
-            directAdmission: false,
-            status: 'waiting',
+            studentId,
+            courseId,
             position,
-            totalInQueue: waitingCount + 1,
-            estimatedWaitSeconds: eta,
-            message: `You are #${position} in line. Estimated wait: ~${eta}s`,
+            totalInQueue,
+            estimatedWaitSeconds,
+            status: 'waiting',
+            message: `You are #${position} in line for ${courseId}. Estimated wait: ~${estimatedWaitSeconds}s`,
         });
     } catch (err) {
         logger.error('Error in /api/queue/join:', err.message);
@@ -122,40 +118,86 @@ app.post('/api/queue/join', async (req, res) => {
     }
 });
 
-// 2. Poll queue status for a ticket
-app.get('/api/queue/status/:ticketId', async (req, res) => {
+// 2. Check Queue / Token Status
+app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) => {
+    if (!queue || !token) {
+        return res.status(503).json({ error: 'Queue/Token service module not ready yet' });
+    }
+
     try {
         const { ticketId } = req.params;
         const courseId = req.query.courseId;
 
-        const ticketRaw = await redis.get(`ticket:${ticketId}`);
-        if (!ticketRaw) {
-            return res.status(404).json({ status: 'EXPIRED', message: 'Ticket expired or not found' });
+        // Check token first (if already admitted)
+        const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
+        if (tokenData) {
+            return res.json({
+                ticketId,
+                status: tokenData.status, // PENDING_ENTRY or ACTIVE
+                courseId: tokenData.courseId,
+                message: tokenData.status === config.TOKEN_STATUS.PENDING_ENTRY
+                    ? 'You have been admitted! Click "Enter Session" to start.'
+                    : 'Your session is active. You can register.',
+            });
         }
 
-        const ticket = JSON.parse(ticketRaw);
+        // If not in token store, check queue position
+        if (courseId) {
+            const position = await queue.getPosition(ticketId, courseId);
+            if (position !== null) {
+                const totalInQueue = await queue.getQueueLength(courseId);
+                const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
+                const wavesNeeded = Math.ceil(position / batchSize);
+                const estimatedWaitSeconds = wavesNeeded * config.ACTIVE_TTL;
 
-        if (ticket.status === 'waiting' && courseId) {
-            const queueKey = `edupulse:waiting-room:${courseId}`;
-            const rank = await redis.zrank(queueKey, ticketId);
-            if (rank !== null) {
-                const position = rank + 1;
-                const eta = Math.ceil(position / ADMISSION_RATE);
                 return res.json({
                     ticketId,
+                    courseId,
                     status: 'waiting',
                     position,
-                    estimatedWaitSeconds: eta,
+                    totalInQueue,
+                    estimatedWaitSeconds,
                 });
             }
+        }
+
+        // Neither in active/pending token nor in queue → expired or invalid
+        res.status(404).json({
+            ticketId,
+            status: 'expired',
+            error: 'Ticket not found or expired',
+        });
+    } catch (err) {
+        logger.error('Error in /api/queue/status:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Enter Session — Transition from PENDING_ENTRY → ACTIVE
+app.post('/api/session/enter', fallback.requireRedis, async (req, res) => {
+    if (!admission) {
+        return res.status(503).json({ error: 'Admission module not ready yet' });
+    }
+
+    try {
+        const { ticketId } = req.body;
+        if (!ticketId) {
+            return res.status(400).json({ error: 'ticketId is required' });
+        }
+
+        const result = await admission.enterSession(ticketId);
+        if (!result) {
+            return res.status(403).json({
+                error: 'Cannot enter session: Token expired or not in PENDING_ENTRY status',
+            });
         }
 
         res.json({
             success: true,
             ticketId,
-            status: ticket.status,
-            position: 0,
-            estimatedWaitSeconds: 0,
+            status: config.TOKEN_STATUS.ACTIVE,
+            ttl: config.ACTIVE_TTL,
+            message: 'Session activated! You have 3 minutes to complete registration.',
         });
     } catch (err) {
         logger.error('Error in /api/session/enter:', err.message);
@@ -163,40 +205,31 @@ app.get('/api/queue/status/:ticketId', async (req, res) => {
     }
 });
 
-// 3. Enter session (PENDING_ENTRY -> ACTIVE)
-app.post('/api/session/enter', async (req, res) => {
+// 4. Session Heartbeat — Keep active session alive
+app.post('/api/session/heartbeat', fallback.requireRedis, async (req, res) => {
+    if (!admission) {
+        return res.status(503).json({ error: 'Admission module not ready yet' });
+    }
+
     try {
         const { ticketId } = req.body;
         if (!ticketId) {
             return res.status(400).json({ error: 'ticketId is required' });
         }
 
-        const ticketRaw = await redis.get(`ticket:${ticketId}`);
-        if (!ticketRaw) {
-            return res.status(404).json({ error: 'Ticket expired or invalid' });
+        const result = await admission.heartbeat(ticketId);
+        if (!result.ok) {
+            return res.status(403).json(result);
         }
 
-        const ticket = JSON.parse(ticketRaw);
-        if (ticket.status !== 'PENDING_ENTRY' && ticket.status !== 'ACTIVE') {
-            return res.status(400).json({ error: `Cannot enter session from status: ${ticket.status}` });
-        }
-
-        // Add ticket to active set for course
-        if (ticket.courseId) {
-            await redis.sadd(`edupulse:active:${ticket.courseId}`, ticketId);
-        }
-
-        ticket.status = 'ACTIVE';
-        ticket.enteredAt = new Date().toISOString();
-        await redis.set(`ticket:${ticketId}`, JSON.stringify(ticket), 'EX', QUEUE_TTL);
-
-        res.json({ success: true, status: 'ACTIVE', ticketId });
+        res.json({ ok: true, ticketId, extendedTTL: config.ACTIVE_TTL });
     } catch (err) {
+        logger.error('Error in /api/session/heartbeat:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// 4. Register course (Proxies to mock-backend + revokes token)
+// 5. Course Registration — Final Registration Endpoint
 app.post('/api/register', async (req, res) => {
     try {
         const { studentId, courseId, ticketId } = req.body;
@@ -204,55 +237,118 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'studentId and courseId are required' });
         }
 
-        // Proxy request to mock-backend
-        const backendRes = await fetch(`${BACKEND_URL}/api/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ studentId, courseId }),
-        });
+        // Fallback mode check: If Redis is down, pass through directly
+        if (!fallback.getStatus()) {
+            const fallbackResult = await fallback.passThroughRegister(studentId, courseId);
+            return res.status(fallbackResult.status).json(fallbackResult.data || { error: fallbackResult.error });
+        }
 
-        const data = await backendRes.json();
+        // Normal mode: Token verification required
+        if (!token) {
+            return res.status(503).json({ error: 'Token module not ready yet' });
+        }
 
-        if (backendRes.ok) {
-            // REVOKE TOKEN & FREE ACTIVE SLOT
-            if (ticketId && courseId) {
-                await redis.srem(`edupulse:active:${courseId}`, ticketId);
-                await redis.del(`ticket:${ticketId}`);
-                console.log(`🔄 Token ${ticketId} revoked for course ${courseId}. Active slot freed.`);
-                // Promote next student waiting in queue
-                await promoteNextInQueue(courseId);
+        if (!ticketId) {
+            return res.status(400).json({ error: 'ticketId is required for registration' });
+        }
+
+        const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
+        if (!tokenData || tokenData.status !== config.TOKEN_STATUS.ACTIVE) {
+            return res.status(403).json({
+                error: 'Access denied: Valid ACTIVE session token required',
+            });
+        }
+
+        // Forward to Mock Backend
+        const result = await proxy.forwardRegistration(studentId, courseId, ticketId);
+
+        if (result.success) {
+            // Revoke token upon successful registration
+            const revokeFn = token.revokeToken ? token.revokeToken.bind(token) : token.revoke.bind(token);
+            await revokeFn(ticketId, courseId);
+            // Trigger admission loop right away so slot gets filled fast
+            if (admission) {
+                admission.admitBatch(courseId).catch(e => logger.error('Error admitting next batch', e));
             }
-            return res.status(backendRes.status).json(data);
+            return res.status(result.status).json(result.data);
         } else {
-            return res.status(backendRes.status).json(data);
+            return res.status(result.status).json({ error: result.error });
+        }
+    } catch (err) {
+        logger.error('Error in /api/register:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 6. Direct Pass-Through Register Endpoint (for fallback testing or emergency)
+app.post('/api/register/direct', async (req, res) => {
+    try {
+        const { studentId, courseId } = req.body;
+        if (!studentId || !courseId) {
+            return res.status(400).json({ error: 'studentId and courseId are required' });
+        }
+        const result = await fallback.passThroughRegister(studentId, courseId);
+        res.status(result.status).json(result.data || { error: result.error });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 7. Config Update Endpoint (called by Capacity Advisor)
+app.put('/api/config/admission-rate', (req, res) => {
+    try {
+        const { rate, batchSize } = req.body;
+        const newSize = batchSize || rate;
+        if (!newSize || newSize < 1) {
+            return res.status(400).json({ error: 'batchSize / rate must be >= 1' });
+        }
+
+        if (admission) {
+            const oldSize = admission.getBatchSize();
+            admission.setBatchSize(newSize);
+            return res.json({ oldBatchSize: oldSize, newBatchSize: newSize });
+        } else {
+            return res.status(503).json({ error: 'Admission module not ready' });
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 5. Admin: process queue manually
-app.post('/api/queue/process', async (req, res) => {
+// Reset Queue Endpoint (for dev/testing cleanup)
+app.post('/api/queue/reset', async (req, res) => {
     try {
-        const { courseId, batchSize = 10 } = req.body;
-        const queueKey = courseId ? `edupulse:waiting-room:${courseId}` : 'edupulse:waiting-room';
-        const tickets = await redis.zrange(queueKey, 0, batchSize - 1);
-
-        if (tickets.length === 0) {
-            return res.json({ admitted: 0, message: 'Queue is empty' });
+        const keys = await redis.keys('edupulse:*');
+        if (keys.length > 0) {
+            await redis.del(...keys);
         }
-
-        for (const ticketId of tickets) {
-            await redis.set(
-                `ticket:${ticketId}`,
-                JSON.stringify({ status: 'PENDING_ENTRY', courseId }),
-                'EX',
-                QUEUE_TTL
-            );
-            await redis.zrem(queueKey, ticketId);
+        const ticketKeys = await redis.keys('ticket:*');
+        if (ticketKeys.length > 0) {
+            await redis.del(...ticketKeys);
         }
+        logger.info('🧹 Queue and active tokens reset successfully');
+        res.json({ message: 'Queue and active tokens reset successfully', clearedKeys: keys.length + ticketKeys.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        res.json({ admitted: tickets.length });
+// 8. Queue Stats (for Dashboard monitoring)
+app.get('/api/queue/stats', async (req, res) => {
+    try {
+        const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
+        const redisAlive = fallback.getStatus();
+
+        res.json({
+            service: 'traffic-gateway',
+            redisAlive,
+            batchSize,
+            admissionIntervalMs: config.ADMISSION_INTERVAL,
+            pendingEntryTTL: config.PENDING_ENTRY_TTL,
+            activeTTL: config.ACTIVE_TTL,
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -260,16 +356,26 @@ app.post('/api/queue/process', async (req, res) => {
 
 // 9. Health Check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'traffic-gateway', maxActive: MAX_ACTIVE_PER_COURSE });
+    res.json({
+        status: 'ok',
+        service: 'traffic-gateway',
+        redisAlive: fallback.getStatus(),
+        batchSize: admission ? admission.getBatchSize() : config.BATCH_SIZE,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+    });
 });
 
-// Start server
+// Server Start
 redis.on('connect', () => {
-    console.log('🔴 Traffic Gateway connected to Redis');
+    logger.info('🔴 Connected to Redis');
 });
 
-app.listen(PORT, () => {
-    console.log(`🚦 Traffic Shaping Gateway running on port ${PORT}`);
-    console.log(`   Backend target: ${BACKEND_URL}`);
-    console.log(`   Max active per course: ${MAX_ACTIVE_PER_COURSE}`);
+redis.on('error', (err) => {
+    logger.error('❌ Redis Connection Error:', err.message);
+});
+
+app.listen(config.PORT, () => {
+    logger.info(`🚦 Traffic Shaping Gateway running on port ${config.PORT}`);
+    logger.info(`   Batch Size: ${config.BATCH_SIZE}, Interval: ${config.ADMISSION_INTERVAL}ms`);
 });

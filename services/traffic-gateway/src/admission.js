@@ -23,9 +23,14 @@ module.exports = (redis, queue, token, logger = console) => {
         const admitted = [];
         for (const ticketId of candidates) {
             try {
-                await token.create(ticketId, courseId); // status = PENDING_ENTRY, TTL = PENDING_ENTRY_TTL
-                await queue.dequeue(ticketId, courseId);
-                admitted.push(ticketId);
+                const admitRes = await token.atomicAdmit(ticketId, courseId, TOKEN_STATUS.PENDING_ENTRY);
+                if (admitRes.admitted) {
+                    await queue.dequeue(ticketId, courseId);
+                    admitted.push(ticketId);
+                } else {
+                    // Capacity filled mid-batch
+                    break;
+                }
             } catch (err) {
                 logger.error(`Failed to admit ${ticketId} for ${courseId}:`, err.message);
             }
@@ -51,13 +56,13 @@ module.exports = (redis, queue, token, logger = console) => {
 
     // Called when student clicks "enter" — chuyển PENDING_ENTRY → ACTIVE
     async function enterSession(ticketId) {
-        return await token.enterSession(ticketId); // return null if expired PENDING_ENTRY
+        return await token.activateToken(ticketId); // return null if expired PENDING_ENTRY
     }
 
     // Heartbeat — only extend if token is in ACTIVE state (check in token.js, not here)
     async function heartbeat(ticketId) {
-        const extended = await token.extendTTL(ticketId);
-        return extended ? { ok: true } : { ok: false, error: 'Session not active or expired' };
+        const updatedToken = await token.heartbeat(ticketId);
+        return updatedToken ? { ok: true } : { ok: false, error: 'Session not active or expired' };
     }
 
     function startAdmissionLoop() {
