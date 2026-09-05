@@ -100,7 +100,7 @@ app.delete('/api/unregister', async (req, res) => {
     }
 });
 
-// 0.6. Student Login (Proxy to Mock Backend)
+// 0.7. Student Login (Proxy to Mock Backend)
 app.post('/api/login', async (req, res) => {
     try {
         const url = `${config.MOCK_BACKEND_URL}/api/login`;
