@@ -32,11 +32,11 @@ export default function SuccessModal({ isOpen, onClose, count = 0 }) {
                     </h4>
 
                     <p className="text-xs text-gray-600 leading-relaxed">
-                        Hệ thống đã hủy <span className="font-bold text-emerald-700">{count}</span> môn học và giải phóng slot trên MongoDB thành công.
+                        Hệ thống đã hủy <span className="font-bold text-emerald-700">{count}</span> môn học và giải phóng slot thành công.
                     </p>
 
                     <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded text-[11px] text-emerald-800 font-mono">
-                        Trạng thái danh sách môn học đã được cập nhật real-time.
+                        Trạng thái danh sách môn học đã được cập nhật. Sinh viên vui lòng xem lại danh sách.
                     </div>
                 </div>
 

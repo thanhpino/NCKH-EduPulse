@@ -8,11 +8,11 @@ const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
 
 // Mock additional metadata for TDTU course schedule & details (with ---123456789012345--- format for Tuần)
 const MOCK_METADATA = {
-    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, ---123456789012345---', instructor: 'TS. Nguyễn Văn A' },
-    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, ---123456789012345---', instructor: 'PGS. TS. Trần Thị B' },
-    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, ---123456789012345---', instructor: 'ThS. Lê Hoàng C' },
-    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, ---123456789012345---', instructor: 'TS. Phạm Minh D' },
-    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, ---123456789012345---', instructor: 'TS. Đỗ Thanh E' },
+    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, ---1234----9012345---', instructor: 'TS. Nguyễn Văn A' },
+    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, ---1234567---12345---', instructor: 'PGS. TS. Trương Minh Thành' },
+    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, ---1--456789012345---', instructor: 'ThS. Huỳnh Trần Thiên Phú' },
+    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, ---1234567---12345---', instructor: 'TS. Phạm Minh D' },
+    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, ---123456--9012345---', instructor: 'TS. Đỗ Thanh E' },
 };
 
 export default function Register() {
@@ -279,7 +279,7 @@ export default function Register() {
                     <div className="flex items-center space-x-4">
                         <div>
                             <span className="text-gray-500 font-medium">Học kỳ: </span>
-                            <span className="font-bold text-[#8C0000]">Học kỳ 1 - Năm học 2026-2027</span>
+                            <span className="font-bold text-[#8C0000]">Học kỳ 2 - Năm học 2026-2027</span>
                         </div>
                         <div className="h-4 w-px bg-gray-300"></div>
                         <div>

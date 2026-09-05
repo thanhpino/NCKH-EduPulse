@@ -34,7 +34,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                                 <div key={r.courseId} className="flex justify-between items-center bg-white p-2 rounded border border-gray-200 text-xs">
                                     <span className="font-mono font-bold text-red-900">{r.courseId}</span>
                                     <span className="text-gray-600 truncate max-w-50">{r.courseName || r.courseId}</span>
-                                    <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-medium">Sẽ hủy</span>
+                                    <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-medium">Xác nhận hủy</span>
                                 </div>
                             ))}
                         </div>
@@ -44,7 +44,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                         <div className="font-bold flex items-center gap-1">
                             <span>ℹ️ LƯU Ý QUAN TRỌNG:</span>
                         </div>
-                        <p>Thao tác này sẽ cập nhật ngay lập tức vào MongoDB và giải phóng slot môn học để nhường lại cho các sinh viên khác.</p>
+                        <p>Thao tác này sẽ xóa môn học sinh viên chôn và giải phóng slot môn học để nhường lại cho các sinh viên khác.</p>
                     </div>
                 </div>
 
