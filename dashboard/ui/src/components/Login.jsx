@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
+import logoImg from '../assets/logo.png';
+import catImg from '../assets/cat.png';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
@@ -130,7 +132,12 @@ export default function Login() {
     <div className="login-wrapper">
       <div className="login-card">
         {/* Left Branding Section (Orange) */}
-        <div className="brand-panel">
+        <div className="brand-panel flex flex-col items-center justify-start pt-16">
+          {/*Logo */}
+          <div className="w-35 h-35 rounded-full bg-white overflow-hidden flex items-center justify-center">
+            <img src={logoImg} alt="Portal Logo" className="w-full h-full object-cover scale-150" />
+          </div>
+
           {/* Portal Title */}
           <div className="portal-title">
             {t.portalTitle.map((line, idx) => (
@@ -178,6 +185,12 @@ export default function Login() {
               )}
             </button>
           </div>
+
+          {/* Bottom-Right Cat Graphic */}
+          <div className="absolute bottom-4 right-4 pointer-events-none hidden md:block">
+            <img src={catImg} alt="Mascot Cat" className="w-48 h-auto object-contain" />
+          </div>
+        
 
           {/* Form Header */}
           <div className="form-header">
