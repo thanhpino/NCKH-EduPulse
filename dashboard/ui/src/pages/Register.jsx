@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import CourseRow from '../components/CourseRow';
+import ConfirmModal from '../components/ConfirmModal';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
 
-// Mock additional metadata for TDTU course schedule & details
+// Mock additional metadata for TDTU course schedule & details (including Tuần)
 const MOCK_METADATA = {
-    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101', instructor: 'TS. Nguyễn Văn A' },
-    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202', instructor: 'PGS. TS. Trần Thị B' },
-    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105', instructor: 'ThS. Lê Hoàng C' },
-    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301', instructor: 'TS. Phạm Minh D' },
-    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304', instructor: 'TS. Đỗ Thanh E' },
+    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, Tuần 1-15', instructor: 'TS. Nguyễn Văn A' },
+    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, Tuần 1-15', instructor: 'PGS. TS. Trần Thị B' },
+    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, Tuần 1-15', instructor: 'ThS. Lê Hoàng C' },
+    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, Tuần 1-15', instructor: 'TS. Phạm Minh D' },
+    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, Tuần 1-15', instructor: 'TS. Đỗ Thanh E' },
 };
 
 export default function Register() {
@@ -27,6 +27,7 @@ export default function Register() {
     const [error, setError] = useState(null);
     const [clickCount, setClickCount] = useState(0);
     const [resetMsg, setResetMsg] = useState('');
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
     // Fetch course catalog
@@ -38,7 +39,7 @@ export default function Register() {
                     ...c,
                     credits: MOCK_METADATA[c.courseId]?.credits || 3,
                     group: MOCK_METADATA[c.courseId]?.group || '01',
-                    schedule: MOCK_METADATA[c.courseId]?.schedule || '---012---, Thứ 4, Phòng C101',
+                    schedule: MOCK_METADATA[c.courseId]?.schedule || '---012---, Thứ 4, Phòng C101, Tuần 1-15',
                     instructor: MOCK_METADATA[c.courseId]?.instructor || 'Giảng viên Khoa CNTT',
                 }));
                 setCourses(enriched);
@@ -68,9 +69,17 @@ export default function Register() {
             .catch((err) => console.error('Failed to fetch registrations:', err));
     }, [mssv]);
 
+    // Initial load + Auto real-time sync polling (no F5 required)
     useEffect(() => {
         fetchCourses();
         fetchRegistrations();
+
+        const timer = setInterval(() => {
+            fetchCourses();
+            fetchRegistrations();
+        }, 2500);
+
+        return () => clearInterval(timer);
     }, [fetchCourses, fetchRegistrations]);
 
     // Handle status transition callback from CourseRow / useQueuePolling
@@ -135,14 +144,14 @@ export default function Register() {
         setLoading(false);
     }
 
-    // Unregister / Drop all registered courses for student
-    async function handleUnregister() {
+    // Open UI Confirm Modal for Unregistration
+    function handleUnregisterClick() {
         if (registeredCount === 0 || loading) return;
+        setIsConfirmModalOpen(true);
+    }
 
-        if (!window.confirm(`Bạn có chắc chắn muốn HỦY TẤT CẢ ${registeredCount} môn học đã đăng ký? (Slot sẽ được nhường lại cho sinh viên khác)`)) {
-            return;
-        }
-
+    // Execute Unregistration Action
+    async function confirmUnregisterAction() {
         setLoading(true);
         try {
             const res = await fetch(`${GATEWAY_URL}/api/unregister`, {
@@ -162,6 +171,7 @@ export default function Register() {
             console.error('Failed to unregister courses:', err);
         } finally {
             setLoading(false);
+            setIsConfirmModalOpen(false);
         }
     }
 
@@ -183,6 +193,15 @@ export default function Register() {
     const selectedCount = selectedList.length;
     const totalSelectedCredits = selectedList.reduce((sum, c) => sum + (c.credits || 3), 0);
     const registeredCount = registrations.length || Object.values(cart).filter((e) => e.status === 'DONE').length;
+
+    // Map registered list details for modal
+    const registeredList = registrations.map((r) => {
+        const found = courses.find((c) => c.courseId === r.courseId);
+        return {
+            courseId: r.courseId,
+            courseName: found ? found.courseName : r.courseId,
+        };
+    });
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] text-gray-800 font-sans pb-24">
@@ -284,14 +303,14 @@ export default function Register() {
                         disabled={selectedCount === 0 || loading}
                         className={`px-5 py-2 rounded text-xs font-bold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0 || loading
                             ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
-                            : 'bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
+                            : 'bg-linear-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
                             }`}
                     >
                         {loading ? 'Đang gửi yêu cầu...' : `Đăng ký (${selectedCount})`}
                     </button>
 
                     <button
-                        onClick={handleUnregister}
+                        onClick={handleUnregisterClick}
                         disabled={registeredCount === 0 || loading}
                         className={`px-4 py-2 rounded text-xs font-semibold shadow border transition-all ${registeredCount === 0 || loading
                             ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
@@ -367,7 +386,7 @@ export default function Register() {
                         {selectedList.map((c) => (
                             <li key={c.courseId} className="flex justify-between items-center bg-gray-800/80 p-1.5 rounded border border-gray-700">
                                 <span className="font-mono text-amber-300 font-bold">{c.courseId}</span>
-                                <span className="truncate max-w-[140px] text-gray-200">{c.courseName}</span>
+                                <span className="truncate max-w-35 text-gray-200">{c.courseName}</span>
                                 <span className="text-[10px] text-gray-400 font-mono">{c.credits || 3} TC</span>
                             </li>
                         ))}
@@ -381,12 +400,22 @@ export default function Register() {
                     <button
                         onClick={handleRegister}
                         disabled={loading}
-                        className="w-full mt-2 py-1.5 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-xs rounded shadow transition-all active:scale-95"
+                        className="w-full mt-2 py-1.5 bg-linear-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-xs rounded shadow transition-all active:scale-95 cursor-pointer"
                     >
                         {loading ? 'Đang gửi...' : 'Đăng ký ngay'}
                     </button>
                 </div>
             )}
+
+            {/* Confirmation Pop-up Modal for Unregistration */}
+            <ConfirmModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={confirmUnregisterAction}
+                registeredCount={registeredCount}
+                registeredList={registeredList}
+                loading={loading}
+            />
         </div>
     );
 }
