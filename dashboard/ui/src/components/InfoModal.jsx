@@ -71,11 +71,11 @@ export default function InfoModal({ isOpen, onClose }) {
                         <div className="bg-amber-50/60 border border-amber-200 p-2.5 rounded text-amber-900 space-y-1 font-mono text-[11px]">
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Hotline Kỹ thuật:</span>
-                                <span className="font-bold text-blue-900">1900 1234 (Ext 2)</span>
+                                <span className="font-bold text-blue-900">0932013424 (TMT)</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Email Hỗ trợ:</span>
-                                <span className="font-bold text-blue-900">support@edupulse.edu.vn</span>
+                                <span className="font-bold text-blue-900">tmt@edupulse.edu.vn</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Địa điểm hỗ trợ trực tiếp:</span>
