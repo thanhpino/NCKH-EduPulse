@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -28,11 +29,16 @@ const registrationSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 });
 
+const testStudentSchema = new mongoose.Schema({
+  studentId: { type: String, required: true },
+  passwordHash: { type: String, required: true},
+});
 // Compound unique index — đảm bảo 1 SV chỉ đăng ký 1 môn duy nhất 1 lần ở tầng DB (chống race condition)
 registrationSchema.index({ studentId: 1, courseId: 1 }, { unique: true });
 
 const Course = mongoose.model('Course', courseSchema);
 const Registration = mongoose.model('Registration', registrationSchema);
+const TestStudent = mongoose.model('TestStudent', testStudentSchema);
 
 // Routes
 
@@ -130,6 +136,61 @@ app.post('/api/seed', async (req, res) => {
 
     await Course.insertMany(sampleCourses);
     res.json({ message: 'Seeded successfully', count: sampleCourses.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Populate testStudentSchema table with 4 test accounts
+// Passwords hashed directly inside the method
+const seedStudentsHandler = async (req, res) => {
+  try {
+    await TestStudent.deleteMany({});
+
+    const testAccounts = [
+      { studentId: '52000001', password: 'Password123@' },
+      { studentId: '52000002', password: 'Password123@' },
+      { studentId: '52000003', password: 'Password123@' },
+      { studentId: '52000004', password: 'Password123@' },
+    ];
+
+    // Hash passwords directly inside the method using crypto SHA-256
+    const hashedAccounts = testAccounts.map((account) => {
+      const passwordHash = crypto
+        .createHash('sha256')
+        .update(account.password)
+        .digest('hex');
+
+      return {
+        studentId: account.studentId,
+        passwordHash,
+      };
+    });
+
+    await TestStudent.insertMany(hashedAccounts);
+
+    res.status(201).json({
+      message: 'Populated testStudentSchema table with 4 test accounts successfully',
+      count: hashedAccounts.length,
+      accounts: testAccounts.map((acc, index) => ({
+        studentId: acc.studentId,
+        plainPassword: acc.password,
+        passwordHash: hashedAccounts[index].passwordHash,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/seed-students', seedStudentsHandler);
+app.post('/api/students/seed', seedStudentsHandler);
+
+// Get all test students
+app.get('/api/test-students', async (req, res) => {
+  try {
+    const students = await TestStudent.find({}, { __v: 0 });
+    res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
