@@ -68,6 +68,22 @@ app.get('/api/courses', async (req, res) => {
     }
 });
 
+// 0.5. Get Student Registrations List (Proxy to Mock Backend)
+app.get('/api/registrations', async (req, res) => {
+    try {
+        const studentId = req.query.studentId;
+        const url = studentId
+            ? `${config.MOCK_BACKEND_URL}/api/registrations?studentId=${studentId}`
+            : `${config.MOCK_BACKEND_URL}/api/registrations`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        logger.error('Error fetching registrations from mock backend:', err.message);
+        res.status(502).json({ error: 'Failed to fetch registrations' });
+    }
+});
+
 // 1. Join Queue — Enqueue student for a course
 app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
     if (!queue) {

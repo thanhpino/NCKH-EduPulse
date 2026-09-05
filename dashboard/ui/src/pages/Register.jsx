@@ -1,37 +1,39 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import CourseRow from '../components/CourseRow';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3010';
 
-// Mock schedule data mapping for realistic TDTU portal look
+// Mock additional metadata for TDTU course schedule & details
 const MOCK_METADATA = {
-    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 4, Phòng C102', instructor: 'TS. Nguyễn Văn A' },
-    CS201: { credits: 3, group: '02', schedule: '----345---, Thứ 3, Phòng C201', instructor: 'ThS. Trần Thị B' },
-    CS301: { credits: 3, group: '01', schedule: '---789---, Thứ 5, Phòng C305', instructor: 'PGS.TS. Lê Văn C' },
-    CS401: { credits: 3, group: '03', schedule: '---456---, Thứ 2, Phòng B104', instructor: 'ThS. Phạm Hoàng D' },
-    CS501: { credits: 3, group: '01', schedule: '123-------, Thứ 6, Phòng A202', instructor: 'TS. Võ Minh E' },
+    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101', instructor: 'TS. Nguyễn Văn A' },
+    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202', instructor: 'PGS. TS. Trần Thị B' },
+    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105', instructor: 'ThS. Lê Hoàng C' },
+    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301', instructor: 'TS. Phạm Minh D' },
+    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304', instructor: 'TS. Đỗ Thanh E' },
 };
 
 export default function Register() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const mssv = searchParams.get('mssv') || 'B2012345';
 
     const [courses, setCourses] = useState([]);
+    const [registrations, setRegistrations] = useState([]);
     const [selected, setSelected] = useState(new Set());
     const [cart, setCart] = useState({}); // courseId → { ticketId, status }
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [clickCount, setClickCount] = useState(0);
+    const [resetMsg, setResetMsg] = useState('');
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
     // Fetch course catalog
-    useEffect(() => {
-        fetch(`${BACKEND_URL}/api/courses`)
+    const fetchCourses = useCallback(() => {
+        fetch(`${GATEWAY_URL}/api/courses`)
             .then((r) => r.json())
             .then((data) => {
-                // Enrich with mock metadata (credits, group, schedule, instructor)
                 const enriched = data.map((c) => ({
                     ...c,
                     credits: MOCK_METADATA[c.courseId]?.credits || 3,
@@ -43,6 +45,54 @@ export default function Register() {
             })
             .catch(() => setError('Không thể tải danh sách môn học từ hệ thống.'));
     }, []);
+
+    // Fetch student registrations from MongoDB
+    const fetchRegistrations = useCallback(() => {
+        if (!mssv) return;
+        fetch(`${GATEWAY_URL}/api/registrations?studentId=${mssv}`)
+            .then((r) => r.json())
+            .then((data) => {
+                const list = data.registrations || [];
+                setRegistrations(list);
+                setCart((prev) => {
+                    const next = { ...prev };
+                    list.forEach((r) => {
+                        next[r.courseId] = {
+                            ticketId: next[r.courseId]?.ticketId || 'DB_REGISTERED',
+                            status: 'DONE',
+                        };
+                    });
+                    return next;
+                });
+            })
+            .catch((err) => console.error('Failed to fetch registrations:', err));
+    }, [mssv]);
+
+    useEffect(() => {
+        fetchCourses();
+        fetchRegistrations();
+    }, [fetchCourses, fetchRegistrations]);
+
+    // Handle status transition callback from CourseRow / useQueuePolling
+    const handleStatusChange = useCallback((courseId, newStatus) => {
+        setCart((prev) => ({
+            ...prev,
+            [courseId]: {
+                ticketId: prev[courseId]?.ticketId,
+                status: newStatus,
+            },
+        }));
+
+        if (newStatus === 'DONE') {
+            setSelected((prev) => {
+                const next = new Set(prev);
+                next.delete(courseId);
+                return next;
+            });
+            fetchRegistrations();
+            fetchCourses();
+        }
+    }, [fetchRegistrations, fetchCourses]);
 
     function toggleSelect(courseId) {
         setSelected((prev) => {
@@ -57,7 +107,7 @@ export default function Register() {
         if (selected.size === 0) return;
         setLoading(true);
 
-        const toRegister = [...selected].filter((id) => !cart[id]);
+        const toRegister = [...selected].filter((id) => !cart[id] || cart[id].status !== 'DONE');
 
         await Promise.all(
             toRegister.map(async (courseId) => {
@@ -83,17 +133,17 @@ export default function Register() {
         );
 
         setLoading(false);
-        setSelected(new Set());
     }
 
     // Reset Queue Button for test cleanup
     async function handleResetQueue() {
         try {
-            const res = await fetch(`${GATEWAY_URL}/api/queue/reset`, { method: 'POST' });
-            const data = await res.json();
+            await fetch(`${GATEWAY_URL}/api/queue/reset`, { method: 'POST' });
             setCart({});
             setResetMsg('Đã dọn dẹp hàng đợi Redis!');
             setTimeout(() => setResetMsg(''), 3000);
+            fetchRegistrations();
+            fetchCourses();
         } catch (e) {
             setResetMsg('Lỗi khi reset hàng đợi');
         }
@@ -102,168 +152,209 @@ export default function Register() {
     const selectedList = courses.filter((c) => selected.has(c.courseId));
     const selectedCount = selectedList.length;
     const totalSelectedCredits = selectedList.reduce((sum, c) => sum + (c.credits || 3), 0);
-    const registeredCount = Object.values(cart).filter((e) => e.status === 'DONE').length;
+    const registeredCount = registrations.length || Object.values(cart).filter((e) => e.status === 'DONE').length;
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] text-gray-800 font-sans pb-24">
             {/* Top Navigation Bar (Teal / Steel Blue TDTU Style) */}
             <nav className="bg-[#005B7F] text-white px-6 py-2.5 flex items-center justify-between shadow-md text-xs font-medium">
-                <div className="flex items-center gap-6">
-                    <span className="cursor-pointer hover:text-cyan-200 transition-colors flex items-center gap-1 font-bold text-white border-b-2 border-cyan-300 pb-0.5">
-                        📋 Đăng ký môn học theo KHHT
+                <div className="flex items-center space-x-6">
+                    <span className="font-bold text-sm tracking-wide flex items-center gap-2">
+                        <span className="bg-white text-[#005B7F] px-1.5 py-0.5 rounded font-black text-xs">PORTAL</span>
+                        ĐĂNG KÝ MÔN HỌC
                     </span>
-                    <span className="cursor-pointer hover:text-cyan-200 transition-colors flex items-center gap-1 opacity-90">
-                        📅 Kế hoạch học tập
-                    </span>
-                    <span className="cursor-pointer hover:text-cyan-200 transition-colors flex items-center gap-1 opacity-90">
-                        ℹ️ Thông tin
-                    </span>
+                    <div className="flex space-x-1">
+                        <button className="bg-[#00425C] px-3 py-1.5 rounded font-semibold border-b-2 border-amber-400 text-white transition-all">
+                            Đăng ký môn học theo KHHT
+                        </button>
+                        <button className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all">
+                            Kế hoạch học tập
+                        </button>
+                        <button className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all">
+                            Thông tin
+                        </button>
+                    </div>
                 </div>
-                <div
-                    onClick={() => setClickCount((prev) => prev + 1)}
-                    className="font-semibold text-cyan-100 bg-cyan-900/40 px-3 py-1 rounded border border-cyan-700/50 cursor-pointer select-none"
-                    title="Click 3 lần để mở Dev Test Mode"
-                >
-                    MSSV: {mssv}
+
+                <div className="flex items-center space-x-4">
+                    {/* Student Info & Debug Trigger */}
+                    <div
+                        className="bg-[#00425C] px-3 py-1 rounded text-[11px] font-mono cursor-pointer select-none hover:bg-[#003348] border border-cyan-800 transition-all"
+                        onClick={() => setClickCount((prev) => prev + 1)}
+                        title="Triple-click to toggle test mode"
+                    >
+                        MSSV: <span className="font-bold text-amber-300">{mssv}</span>
+                    </div>
+
+                    <button
+                        onClick={() => navigate('/login')}
+                        className="bg-red-700 hover:bg-red-800 px-2.5 py-1 rounded text-white font-medium text-[11px] transition-all"
+                    >
+                        Đăng xuất
+                    </button>
                 </div>
             </nav>
 
-            {/* Announcement Section */}
-            <div className="bg-[#FFFDE7] border-b border-[#FFF59D] px-6 py-2.5 text-xs text-gray-700 text-center shadow-inner">
-                Sinh viên có thể đăng ký và chỉnh sửa thông tin đăng ký đến{' '}
-                <span className="text-[#D32F2F] font-bold">17 giờ - ngày 30/12/2025</span>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 py-4">
-                {/* Action Buttons Header */}
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-2">
-                        {/* Button 1: Đăng ký */}
+            {/* Hidden Dev Debug Toolbar */}
+            {isDebugMode && (
+                <div className="bg-amber-100 border-b border-amber-300 px-6 py-2 flex items-center justify-between text-xs text-amber-900 shadow-inner animate-fade-in">
+                    <div className="flex items-center space-x-2 font-mono">
+                        <span className="bg-amber-800 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">DEV TEST MODE</span>
+                        <span>Gateway: {GATEWAY_URL}</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        {resetMsg && <span className="text-emerald-700 font-bold">{resetMsg}</span>}
                         <button
-                            onClick={handleRegister}
-                            disabled={loading || selectedCount === 0}
-                            className="bg-linear-to-b from-[#D4ECFC] via-[#A8D3F4] to-[#78B4E3] hover:from-[#C0E3FC] hover:to-[#6AA8DC] text-[#900000] font-bold px-5 py-1 rounded-[3px] text-xs border border-[#5896C7] shadow-[0_1px_2px_rgba(0,0,0,0.15)] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            onClick={handleResetQueue}
+                            className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1 rounded shadow text-xs transition-all"
                         >
-                            {loading ? 'Đang xử lý...' : selectedCount > 0 ? `Đăng ký (${selectedCount})` : 'Đăng ký'}
-                        </button>
-
-                        {/* Button 2: Hủy các môn đã đăng ký */}
-                        <button
-                            onClick={() => {
-                                setSelected(new Set());
-                                setCart({});
-                            }}
-                            className="bg-gradient-to-b from-[#D4ECFC] via-[#A8D3F4] to-[#78B4E3] hover:from-[#C0E3FC] hover:to-[#6AA8DC] text-[#900000] font-bold px-5 py-1 rounded-[3px] text-xs border border-[#5896C7] shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition-all cursor-pointer"
-                        >
-                            Hủy các môn đã đăng ký
+                            Reset Redis Queue State
                         </button>
                     </div>
+                </div>
+            )}
 
-                    <div className="text-xs text-gray-600 font-medium">
-                        Đã đăng ký thành công: <span className="text-green-600 font-bold text-sm">{registeredCount}</span> môn
+            {/* Main Content Area */}
+            <div className="max-w-7xl mx-auto px-6 py-4 space-y-4">
+                {/* Academic Term Header Panel */}
+                <div className="bg-white p-4 rounded shadow-sm border border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
+                    <div className="flex items-center space-x-4">
+                        <div>
+                            <span className="text-gray-500 font-medium">Học kỳ: </span>
+                            <span className="font-bold text-[#8C0000]">Học kỳ 1 - Năm học 2026-2027</span>
+                        </div>
+                        <div className="h-4 w-px bg-gray-300"></div>
+                        <div>
+                            <span className="text-gray-500 font-medium">Đợt đăng ký: </span>
+                            <span className="font-semibold text-gray-800">Đợt 1 - Đăng ký chính thức</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-6 font-semibold">
+                        <div className="text-blue-900">
+                            Đã đăng ký: <span className="text-blue-600 font-bold text-sm">{registeredCount}</span> môn
+                        </div>
+                        <div className="text-amber-900">
+                            Đang chọn: <span className="text-amber-600 font-bold text-sm">{selectedCount}</span> môn ({totalSelectedCredits} TC)
+                        </div>
                     </div>
                 </div>
 
-                {/* Dotted Separator Line */}
-                <div className="border-t-2 border-dotted border-[#3388BB] my-3"></div>
-
                 {/* Error Banner */}
                 {error && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
+                    <div className="bg-red-50 border-l-4 border-red-600 p-3 text-red-700 text-xs rounded shadow-sm">
                         {error}
                     </div>
                 )}
 
-                {/* Course Table (Classic TDTU Style with Dark Crimson Header) */}
-                <div className="bg-white border border-[#D5D8DC] rounded-sm shadow-md overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-[#8C0000] text-white font-bold">
-                            <tr>
-                                <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
-                                <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
-                                <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC</th>
-                                <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
-                                <th className="p-2 text-center border-r border-[#A31A1A] w-16">NHÓM</th>
-                                <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
-                                <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
-                                <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
-                                <th className="p-2 w-48">TRẠNG THÁI</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {courses.length === 0 ? (
+                {/* Course Selection Actions (Sky Blue glossy buttons) */}
+                <div className="flex items-center space-x-3">
+                    <button
+                        onClick={handleRegister}
+                        disabled={selectedCount === 0 || loading}
+                        className={`px-5 py-2 rounded text-xs font-bold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0 || loading
+                                ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                                : 'bg-gradient-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
+                            }`}
+                    >
+                        {loading ? 'Đang gửi yêu cầu...' : `Đăng ký (${selectedCount})`}
+                    </button>
+
+                    <button
+                        onClick={() => setSelected(new Set())}
+                        disabled={selectedCount === 0}
+                        className={`px-4 py-2 rounded text-xs font-semibold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                : 'bg-gradient-to-b from-gray-100 to-gray-200 hover:bg-gray-200 hover:shadow-md cursor-pointer'
+                            }`}
+                    >
+                        Hủy chọn các môn
+                    </button>
+                </div>
+
+                {/* Main Course Table (Standard TDTU Red Header Design) */}
+                <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
+                    <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
+                        <span>DANH SÁCH MÔN HỌC MỞ LỚP ACCORDING TO STUDY PLAN</span>
+                        <span className="text-[11px] font-normal text-amber-200">
+                            Hiển thị: {courses.length} môn
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-[#8C0000] text-white font-bold text-[11px]">
                                 <tr>
-                                    <td colSpan={9} className="text-center py-8 text-gray-400">
-                                        Đang tải danh sách môn học...
-                                    </td>
+                                    <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
+                                    <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
+                                    <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC</th>
+                                    <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
+                                    <th className="p-2 text-center border-r border-[#A31A1A] w-16">NHÓM</th>
+                                    <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
+                                    <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
+                                    <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
+                                    <th className="p-2 w-48 text-center">TRẠNG THÁI</th>
                                 </tr>
-                            ) : (
-                                courses.map((course, idx) => (
-                                    <CourseRow
-                                        key={course.courseId}
-                                        course={course}
-                                        isSelected={selected.has(course.courseId)}
-                                        onToggle={() => toggleSelect(course.courseId)}
-                                        cartEntry={cart[course.courseId]}
-                                        studentId={mssv}
-                                        rowIndex={idx}
-                                    />
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Footer total */}
-                <div className="mt-2 text-xs text-gray-600 text-right font-medium">
-                    Tổng: <span className="font-bold text-gray-800">{registeredCount}</span> môn đã đăng ký
-                </div>
-            </div>
-
-            {/* Bottom Right Floating Panel — "Các môn đang chọn" (Point 3 in Image 2) */}
-            <div className="fixed bottom-0 right-6 z-50 bg-[#222222]/95 text-white w-72 p-3 rounded-t-md shadow-2xl border border-gray-700 backdrop-blur-sm transition-all">
-                <div className="flex items-center justify-between font-bold text-yellow-400 border-b border-gray-600 pb-1.5 mb-2 text-xs">
-                    <span>Các môn đang chọn</span>
-                    <span className="text-[10px] bg-yellow-900/60 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-700">
-                        {selectedCount} môn
-                    </span>
-                </div>
-
-                <div className="max-h-36 overflow-y-auto space-y-1 pr-1 text-xs">
-                    {selectedList.length === 0 ? (
-                        <div className="text-gray-400 italic text-center py-2 text-[11px]">
-                            Chưa chọn môn nào
-                        </div>
-                    ) : (
-                        selectedList.map((c) => (
-                            <div key={c.courseId} className="flex items-center justify-between bg-gray-800/80 px-2 py-1 rounded text-[11px]">
-                                <span className="font-medium text-cyan-300">{c.courseId}</span>
-                                <span className="text-gray-200 truncate max-w-[140px]" title={c.courseName}>
-                                    {c.courseName}
-                                </span>
-                                <span className="text-gray-400 font-mono">({c.credits}TC)</span>
-                            </div>
-                        ))
-                    )}
-                    <div className="border-t border-gray-700 pt-1.5 mt-2 flex items-center justify-between text-xs font-bold text-yellow-300">
-                        <span>Tổng:</span>
-                        <span>{selectedCount} môn, {totalSelectedCredits} chỉ</span>
+                            </thead>
+                            <tbody>
+                                {courses.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="text-center py-8 text-gray-400">
+                                            Đang tải danh sách môn học...
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    courses.map((course, idx) => (
+                                        <CourseRow
+                                            key={course.courseId}
+                                            course={course}
+                                            isSelected={selected.has(course.courseId)}
+                                            onToggle={() => toggleSelect(course.courseId)}
+                                            cartEntry={cart[course.courseId]}
+                                            studentId={mssv}
+                                            rowIndex={idx}
+                                            onStatusChange={handleStatusChange}
+                                        />
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-
             </div>
 
-            {/* Hidden Dev Mode Floating Bar (Only shown with ?debug=true or triple-click MSSV) */}
-            {isDebugMode && (
-                <div className="fixed bottom-4 left-6 z-50 bg-[#1E293B]/95 text-white px-3 py-2 rounded-md shadow-2xl border border-slate-700 text-xs flex items-center gap-3 backdrop-blur-sm">
-                    <span className="font-bold text-amber-400 flex items-center gap-1">🛠️ Test Mode</span>
+            {/* Bottom Right Floating Panel — "Các môn đang chọn" */}
+            {selectedCount > 0 && (
+                <div className="fixed bottom-0 right-6 z-50 bg-[#222222]/95 text-white w-72 p-3 rounded-t-md shadow-2xl border border-gray-700 backdrop-blur-sm transition-all animate-bounce-short">
+                    <div className="flex items-center justify-between font-bold text-yellow-400 border-b border-gray-600 pb-1.5 mb-2 text-xs">
+                        <span>Các môn đang chọn</span>
+                        <span className="text-[10px] bg-yellow-900/60 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-700">
+                            {selectedCount} môn
+                        </span>
+                    </div>
+
+                    <ul className="space-y-1.5 max-h-36 overflow-y-auto text-[11px] text-gray-300 pr-1">
+                        {selectedList.map((c) => (
+                            <li key={c.courseId} className="flex justify-between items-center bg-gray-800/80 p-1.5 rounded border border-gray-700">
+                                <span className="font-mono text-amber-300 font-bold">{c.courseId}</span>
+                                <span className="truncate max-w-[140px] text-gray-200">{c.courseName}</span>
+                                <span className="text-[10px] text-gray-400 font-mono">{c.credits || 3} TC</span>
+                            </li>
+                        ))}
+                    </ul>
+
+                    <div className="mt-3 pt-2 border-t border-gray-700 flex justify-between items-center text-xs font-bold text-gray-200">
+                        <span>Tổng số tín chỉ:</span>
+                        <span className="text-yellow-400 font-mono text-sm">{totalSelectedCredits} TC</span>
+                    </div>
+
                     <button
-                        onClick={handleResetQueue}
-                        className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold px-2.5 py-1 rounded text-[11px] transition-colors cursor-pointer"
+                        onClick={handleRegister}
+                        disabled={loading}
+                        className="w-full mt-2 py-1.5 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-xs rounded shadow transition-all active:scale-95"
                     >
-                        🧹 Clear Redis Queue
+                        {loading ? 'Đang gửi...' : 'Đăng ký ngay'}
                     </button>
-                    {resetMsg && <span className="text-emerald-400 font-medium text-[11px]">{resetMsg}</span>}
                 </div>
             )}
         </div>

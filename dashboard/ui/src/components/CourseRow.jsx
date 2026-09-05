@@ -4,12 +4,13 @@ import StatusBadge from './StatusBadge';
 /**
  * CourseRow — Dòng môn học chuẩn giao diện Portal TDTU
  */
-export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex }) {
+export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex, onStatusChange }) {
     const { status, position, eta } = useQueuePolling(
         cartEntry?.ticketId ?? null,
         course.courseId,
         studentId,
-        cartEntry?.status ?? null
+        cartEntry?.status ?? null,
+        onStatusChange
     );
 
     const isFull = course.enrolled >= course.maxSlots;

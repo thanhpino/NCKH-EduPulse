@@ -11,20 +11,27 @@ const POLL_INTERVAL = 3000;
  * @param {string}      courseId      - Mã môn học
  * @param {string}      studentId     - MSSV (dùng khi gọi /api/register)
  * @param {string|null} initialStatus - Trạng thái ban đầu
+ * @param {function}    onStatusChange- Callback báo về Register page khi status thay đổi
  */
-export function useQueuePolling(ticketId, courseId, studentId, initialStatus) {
+export function useQueuePolling(ticketId, courseId, studentId, initialStatus, onStatusChange) {
     const [status, setStatus] = useState(initialStatus ?? null);
     const [position, setPosition] = useState(null);
     const [eta, setEta] = useState(null);
     const intervalRef = useRef(null);
-    const processingRef = useRef(false); // tránh gọi enter/register nhiều lần
+    const processingRef = useRef(false);
+
+    // Sync initialStatus when changed from outside (e.g. MongoDB fetch)
+    useEffect(() => {
+        if (initialStatus) {
+            setStatus(initialStatus);
+        }
+    }, [initialStatus]);
 
     useEffect(() => {
         if (!ticketId || status === 'DONE') return;
 
         async function checkAndAdvance() {
             try {
-                // Đúng URL path: /api/queue/status/{ticketId}?courseId=...
                 const res = await fetch(
                     `${GATEWAY_URL}/api/queue/status/${ticketId}?courseId=${courseId}`
                 );
@@ -32,7 +39,7 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus) {
                 const data = await res.json();
 
                 setPosition(data.position ?? null);
-                setEta(data.estimatedWaitSeconds ?? null); // đúng field name từ backend
+                setEta(data.estimatedWaitSeconds ?? null);
 
                 // PENDING_ENTRY → gọi /api/session/enter để nhận token ACTIVE
                 if (data.status === 'PENDING_ENTRY' && !processingRef.current) {
@@ -42,7 +49,10 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ticketId }),
                     });
-                    if (enterRes.ok) setStatus('ACTIVE');
+                    if (enterRes.ok) {
+                        setStatus('ACTIVE');
+                        onStatusChange?.(courseId, 'ACTIVE');
+                    }
                     processingRef.current = false;
                     return;
                 }
@@ -57,6 +67,7 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus) {
                     });
                     if (regRes.ok) {
                         setStatus('DONE');
+                        onStatusChange?.(courseId, 'DONE');
                         clearInterval(intervalRef.current);
                     } else {
                         console.error(`[useQueuePolling] register failed for ${courseId}: ${regRes.status}`);
@@ -66,13 +77,14 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus) {
                 }
 
                 setStatus(data.status);
+                onStatusChange?.(courseId, data.status);
             } catch (err) {
                 console.error(`[useQueuePolling] ${courseId}:`, err.message);
             }
         }
 
         intervalRef.current = setInterval(checkAndAdvance, POLL_INTERVAL);
-        return () => clearInterval(intervalRef.current); // cleanup tự động
+        return () => clearInterval(intervalRef.current);
     }, [ticketId, courseId, studentId, status]);
 
     return { status, position, eta };
