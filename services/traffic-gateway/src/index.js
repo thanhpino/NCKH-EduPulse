@@ -1,8 +1,11 @@
+// Traffic Shaping Gateway — Main Entry Point
+// EduPulse Microservice Gateway (Batch + 2-Phase Token + Fallback)
+
 require('dotenv').config();
 const express = require('express');
 const Redis = require('ioredis');
-const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -12,6 +15,7 @@ const MAX_ACTIVE_PER_COURSE = parseInt(process.env.MAX_ACTIVE_PER_COURSE) || 50;
 const ADMISSION_RATE = parseInt(process.env.ADMISSION_RATE) || 50; // requests/second for ETA calc
 const QUEUE_TTL = parseInt(process.env.QUEUE_TTL) || 300; // seconds
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
@@ -113,6 +117,7 @@ app.post('/api/queue/join', async (req, res) => {
             message: `You are #${position} in line. Estimated wait: ~${eta}s`,
         });
     } catch (err) {
+        logger.error('Error in /api/queue/join:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -146,12 +151,14 @@ app.get('/api/queue/status/:ticketId', async (req, res) => {
         }
 
         res.json({
+            success: true,
             ticketId,
             status: ticket.status,
             position: 0,
             estimatedWaitSeconds: 0,
         });
     } catch (err) {
+        logger.error('Error in /api/session/enter:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -251,7 +258,7 @@ app.post('/api/queue/process', async (req, res) => {
     }
 });
 
-// Health check
+// 9. Health Check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'traffic-gateway', maxActive: MAX_ACTIVE_PER_COURSE });
 });
