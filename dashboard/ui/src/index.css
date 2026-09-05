@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+:root {
+  --tdt-red: #E0001A;
+  --tdt-red-dark: #B8001A;
+  --tdt-blue: #003087;
+}
