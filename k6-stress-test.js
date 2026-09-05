@@ -13,7 +13,7 @@ const registerSuccessCounter = new Counter('register_success');
 
 export const options = {
     scenarios: {
-        // Kịch bản 1: Spike 1000 Virtual Users trong 3 giây (Bắn tải đột biến)
+        // Kịch bản: Spike 1000 Virtual Users trong 3 giây trên tất cả các môn học mở lớp
         concurrency_spike: {
             executor: 'ramping-vus',
             startVUs: 10,
@@ -30,11 +30,13 @@ export const options = {
     },
 };
 
-const BASE_URL = 'http://localhost:3002';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:3002';
+const COURSES = ['CS101', 'CS201', 'CS301', 'CS401', 'CS501'];
 
 export default function () {
     const studentId = `SV_${__VU}_${__ITER}_${Date.now()}`;
-    const courseId = 'CS101';
+    // Phân bổ ngẫu nhiên hoặc chọn môn qua ENV: TARGET_COURSE=CS501 k6 run k6-stress-test.js
+    const courseId = __ENV.TARGET_COURSE || COURSES[(__VU + __ITER) % COURSES.length];
 
     // 1. Send /api/queue/join request
     const joinPayload = JSON.stringify({ studentId, courseId });

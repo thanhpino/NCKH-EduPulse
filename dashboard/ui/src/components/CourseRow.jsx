@@ -57,7 +57,7 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
 
             {/* Lịch học */}
             <td className="p-2 text-gray-700 font-mono text-[11px] border-r border-[#E8DCDC]">
-                {course.schedule || '---012---, Thứ 4, Phòng C101'}
+                {course.schedule || '---012---, Thứ 4, Phòng C101, ---123456789012345---'}
             </td>
 
             {/* Tên Giảng viên */}

@@ -20,10 +20,12 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus, on
     const intervalRef = useRef(null);
     const processingRef = useRef(false);
 
-    // Sync initialStatus when changed from outside (e.g. MongoDB fetch)
+    // Sync initialStatus when changed from outside (e.g. MongoDB fetch or unregistration)
     useEffect(() => {
-        if (initialStatus) {
-            setStatus(initialStatus);
+        setStatus(initialStatus ?? null);
+        if (!initialStatus) {
+            setPosition(null);
+            setEta(null);
         }
     }, [initialStatus]);
 

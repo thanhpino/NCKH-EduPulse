@@ -31,7 +31,7 @@ const registrationSchema = new mongoose.Schema({
 
 const testStudentSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
-  passwordHash: { type: String, required: true},
+  passwordHash: { type: String, required: true },
 });
 // Compound unique index — đảm bảo 1 SV chỉ đăng ký 1 môn duy nhất 1 lần ở tầng DB (chống race condition)
 registrationSchema.index({ studentId: 1, courseId: 1 }, { unique: true });
@@ -116,6 +116,43 @@ app.get('/api/registrations', async (req, res) => {
     if (err.code === 11000) {
       return res.status(409).json({ error: 'Student already registered for this course' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Unregister / Drop courses for a student
+app.delete('/api/unregister', async (req, res) => {
+  try {
+    const { studentId, courseId } = req.body;
+    if (!studentId) {
+      return res.status(400).json({ error: 'studentId is required' });
+    }
+
+    const filter = { studentId };
+    if (courseId) {
+      filter.courseId = courseId;
+    }
+
+    const regsToRemove = await Registration.find(filter);
+    if (regsToRemove.length === 0) {
+      return res.json({ message: 'No registrations found to delete', count: 0 });
+    }
+
+    for (const reg of regsToRemove) {
+      await Course.updateOne(
+        { courseId: reg.courseId, enrolled: { $gt: 0 } },
+        { $inc: { enrolled: -1 } }
+      );
+    }
+
+    const deleteResult = await Registration.deleteMany(filter);
+
+    res.json({
+      success: true,
+      message: `Successfully unregistered ${deleteResult.deletedCount} courses`,
+      count: deleteResult.deletedCount,
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
