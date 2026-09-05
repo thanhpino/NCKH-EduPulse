@@ -31,7 +31,12 @@ export const options = {
 };
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:3002';
-const COURSES = ['CS101', 'CS201', 'CS301', 'CS401', 'CS501'];
+const COURSES = [
+    'CS101', 'CS102', 'CS201', 'CS202', 'CS301', 'CS302',
+    'CS401', 'CS402', 'CS501', 'CS502', 'CS601', 'CS602',
+    'CS701', 'CS702', 'CS801', 'CS802', 'CS901', 'CS902',
+    'CS1001', 'CS1002', 'CS1101', 'CS1102', 'CS1201', 'CS1202', 'CS1203'
+];
 
 export default function () {
     const studentId = `SV_${__VU}_${__ITER}_${Date.now()}`;

@@ -157,13 +157,33 @@ app.delete('/api/unregister', async (req, res) => {
   }
 });
 
-// Seed sample courses 
+// Seed 25 sample courses 
 const sampleCourses = [
   { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 120 },
-  { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu', maxSlots: 80 },
+  { courseId: 'CS102', courseName: 'Kỹ thuật Lập trình', maxSlots: 100 },
+  { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu & Giải thuật', maxSlots: 80 },
+  { courseId: 'CS202', courseName: 'Lập trình Hướng đối tượng', maxSlots: 90 },
   { courseId: 'CS301', courseName: 'Cơ sở Dữ liệu', maxSlots: 60 },
+  { courseId: 'CS302', courseName: 'Hệ Quản trị CSDL', maxSlots: 70 },
   { courseId: 'CS401', courseName: 'Mạng Máy tính', maxSlots: 50 },
+  { courseId: 'CS402', courseName: 'Lập trình Mạng', maxSlots: 60 },
   { courseId: 'CS501', courseName: 'Trí tuệ Nhân tạo', maxSlots: 40 },
+  { courseId: 'CS502', courseName: 'Học máy & Khai phá Dữ liệu', maxSlots: 50 },
+  { courseId: 'CS601', courseName: 'Phát triển Ứng dụng Web', maxSlots: 80 },
+  { courseId: 'CS602', courseName: 'Lập trình Thiết bị Di động', maxSlots: 75 },
+  { courseId: 'CS701', courseName: 'An toàn & Bảo mật Thông tin', maxSlots: 65 },
+  { courseId: 'CS702', courseName: 'Mã hóa & Ứng dụng', maxSlots: 55 },
+  { courseId: 'CS801', courseName: 'Kiến trúc Phần mềm', maxSlots: 50 },
+  { courseId: 'CS802', courseName: 'Kiểm thử & Đảm bảo Chất lượng PM', maxSlots: 60 },
+  { courseId: 'CS901', courseName: 'Điện toán Đám mây', maxSlots: 70 },
+  { courseId: 'CS902', courseName: 'Hệ thống Phân tán', maxSlots: 45 },
+  { courseId: 'CS1001', courseName: 'Lập trình Python Nâng cao', maxSlots: 85 },
+  { courseId: 'CS1002', courseName: 'Xử lý Ảnh & Thị giác Máy tính', maxSlots: 40 },
+  { courseId: 'CS1101', courseName: 'Xử lý Ngôn ngữ Tự nhiên', maxSlots: 50 },
+  { courseId: 'CS1102', courseName: 'Công nghệ Blockchain & Smart Contracts', maxSlots: 60 },
+  { courseId: 'CS1201', courseName: 'Quản lý Dự án Phần mềm', maxSlots: 90 },
+  { courseId: 'CS1202', courseName: 'Thiết kế Giao diện UI/UX', maxSlots: 100 },
+  { courseId: 'CS1203', courseName: 'Thực tập Doanh nghiệp & Đồ án', maxSlots: 150 },
 ];
 
 app.post('/api/seed', async (req, res) => {
@@ -171,7 +191,7 @@ app.post('/api/seed', async (req, res) => {
     await Course.deleteMany({});
     await Registration.deleteMany({});
     await Course.insertMany(sampleCourses);
-    res.json({ message: 'Seeded successfully', count: sampleCourses.length });
+    res.json({ message: 'Seeded 25 courses successfully', count: sampleCourses.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

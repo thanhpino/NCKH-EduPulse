@@ -376,8 +376,22 @@ app.post('/api/queue/reset', async (req, res) => {
         if (ticketKeys.length > 0) {
             await redis.del(...ticketKeys);
         }
-        logger.info('🧹 Queue and active tokens reset successfully');
-        res.json({ message: 'Queue and active tokens reset successfully', clearedKeys: keys.length + ticketKeys.length });
+
+        // Also trigger seed on Mock Backend to reset MongoDB course slots and registrations
+        let dbSeeded = false;
+        try {
+            await fetch(`${config.MOCK_BACKEND_URL}/api/seed`, { method: 'POST' });
+            dbSeeded = true;
+        } catch (e) {
+            logger.warn('Failed to call mock backend seed during reset:', e.message);
+        }
+
+        logger.info('🧹 Queue, active tokens, and course slots reset successfully');
+        res.json({
+            message: 'System reset successfully: Redis queues cleared & MongoDB course slots reset to 0.',
+            clearedKeys: keys.length + ticketKeys.length,
+            dbSeeded,
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -38,13 +38,44 @@ export default function Register() {
         fetch(`${GATEWAY_URL}/api/courses`)
             .then((r) => r.json())
             .then((data) => {
-                const enriched = data.map((c) => ({
-                    ...c,
-                    credits: MOCK_METADATA[c.courseId]?.credits || 3,
-                    group: MOCK_METADATA[c.courseId]?.group || '01',
-                    schedule: MOCK_METADATA[c.courseId]?.schedule || '---012---, Thứ 4, Phòng C101, ---123456789012345---',
-                    instructor: MOCK_METADATA[c.courseId]?.instructor || 'Giảng viên Khoa CNTT',
-                }));
+                const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+                const rooms = ['C101', 'C202', 'B105', 'A301', 'C304', 'D201', 'E102', 'B303'];
+                const instructors = [
+                    'TS. Nguyễn Văn A',
+                    'PGS. TS. Trương Minh Thành',
+                    'ThS. Huỳnh Trần Thiên Phú',
+                    'TS. Phạm Minh D',
+                    'TS. Đỗ Thanh E',
+                    'ThS. Nguyễn Thị Thu',
+                    'TS. Lê Văn Hoàng',
+                    'PGS. TS. Trần Quốc Bảo'
+                ];
+                const weekPatterns = [
+                    '---1234----9012345---',
+                    '---1234567---12345---',
+                    '---1--456789012345---',
+                    '---123456--9012345---',
+                    '--23456789012345---'
+                ];
+                const periods = ['---012---', '---345---', '---678---', '---789---'];
+
+                const enriched = data.map((c, idx) => {
+                    const meta = MOCK_METADATA[c.courseId];
+                    const day = days[idx % days.length];
+                    const room = rooms[idx % rooms.length];
+                    const inst = instructors[idx % instructors.length];
+                    const week = weekPatterns[idx % weekPatterns.length];
+                    const period = periods[idx % periods.length];
+                    const grp = String((idx % 5) + 1).padStart(2, '0');
+
+                    return {
+                        ...c,
+                        credits: meta?.credits || (c.courseId.includes('1203') ? 10 : (idx % 2 === 0 ? 3 : 4)),
+                        group: meta?.group || grp,
+                        schedule: meta?.schedule || `${period}, ${day}, Phòng ${room}, ${week}`,
+                        instructor: meta?.instructor || inst,
+                    };
+                });
                 setCourses(enriched);
             })
             .catch(() => setError('Không thể tải danh sách môn học từ hệ thống.'));
