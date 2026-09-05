@@ -29,7 +29,7 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
          * @param {object} [metadata={}] - Optional student/request metadata
          * @returns {Promise<object>} Admission or queue position result
          */
-        async enqueue(ticketId, courseId, metadata = {}) {
+        async enqueue(ticketId, courseId, metadata = {}, batchSize = null) {
             const queueKey = `${config.QUEUE_PREFIX}${courseId}`;
 
             // Atomic Direct Admission via tokenManager's Lua Script
@@ -37,7 +37,8 @@ module.exports = (redis, customConfig = {}, customTokenManager = null) => {
                 ticketId,
                 courseId,
                 config.TOKEN_STATUS.ACTIVE,
-                metadata
+                metadata,
+                batchSize
             );
 
             if (admitResult.admitted) {

@@ -41,10 +41,11 @@ module.exports = (redis, customConfig = {}) => {
          * @param {object} [metadata={}] - Optional metadata
          * @returns {Promise<{ admitted: boolean, token?: object, activeCount?: number }>}
          */
-        async atomicAdmit(ticketId, courseId, status = config.TOKEN_STATUS.ACTIVE, metadata = {}) {
+        async atomicAdmit(ticketId, courseId, status = config.TOKEN_STATUS.ACTIVE, metadata = {}, targetBatchSize = null) {
             const activeSetKey = `${config.ACTIVE_SET_PREFIX}${courseId}`;
             const tokenKey = `${config.TOKEN_PREFIX}${ticketId}`;
 
+            const batchSizeToUse = targetBatchSize || config.BATCH_SIZE;
             const ttl = status === config.TOKEN_STATUS.ACTIVE ? config.ACTIVE_TTL : config.PENDING_ENTRY_TTL;
             const now = new Date();
             const expiresAt = new Date(now.getTime() + ttl * 1000);
@@ -67,7 +68,7 @@ module.exports = (redis, customConfig = {}) => {
                 tokenKey,
                 ticketId,
                 courseId,
-                config.BATCH_SIZE,
+                batchSizeToUse,
                 ttl,
                 JSON.stringify(tokenPayload)
             );
