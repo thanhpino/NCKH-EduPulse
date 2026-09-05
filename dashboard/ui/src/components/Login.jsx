@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
 const TRANSLATIONS = {
@@ -6,10 +7,10 @@ const TRANSLATIONS = {
     langCode: 'vi',
     portalTitle: ['EduPulse', 'Xin Chào'],
     greeting: 'XIN CHÀO!',
-    mssvPlaceholder: 'Nhập MSSV',
+    mssvPlaceholder: 'Nhập MSSV (VD: B2012345)',
     passwordPlaceholder: 'Nhập mật khẩu',
     submitButton: 'ĐĂNG NHẬP',
-    mssvInvalid: 'MSSV không hợp lệ',
+    mssvInvalid: 'MSSV không hợp lệ (phải đủ 8 ký tự)',
     passwordLengthError: 'Mật khẩu phải từ 8 ký tự trở lên',
     passwordValid: 'Mật khẩu hợp lệ',
     switchLangTooltip: 'Switch to English',
@@ -21,10 +22,10 @@ const TRANSLATIONS = {
     langCode: 'en',
     portalTitle: ['EduPulse', 'Welcome'],
     greeting: 'WELCOME!',
-    mssvPlaceholder: 'Enter Student ID',
+    mssvPlaceholder: 'Enter Student ID (e.g. B2012345)',
     passwordPlaceholder: 'Enter password',
     submitButton: 'LOG IN',
-    mssvInvalid: 'Invalid Student ID',
+    mssvInvalid: 'Invalid Student ID (must be 8 chars)',
     passwordLengthError: 'Password must be at least 8 characters',
     passwordValid: 'Valid password',
     switchLangTooltip: 'Chuyển sang Tiếng Việt',
@@ -35,6 +36,7 @@ const TRANSLATIONS = {
 };
 
 export default function Login() {
+  const navigate = useNavigate();
   const [lang, setLang] = useState('vi');
   const [mssv, setMssv] = useState('');
   const [password, setPassword] = useState('');
@@ -55,7 +57,6 @@ export default function Login() {
   };
 
   const handleMssvChange = (e) => {
-    // Restrict to max 8 characters or allow typing with validation
     const val = e.target.value.trim().slice(0, 8);
     setMssv(val);
     if (!mssvTouched) setMssvTouched(true);
@@ -74,8 +75,7 @@ export default function Login() {
     if (isFormValid) {
       setSubmitted(true);
       setTimeout(() => {
-        alert(`${t.loginSuccess} (MSSV: ${mssv})`);
-        setSubmitted(false);
+        navigate(`/register?mssv=${mssv}`);
       }, 300);
     }
   };
@@ -143,13 +143,12 @@ export default function Login() {
             {/* MSSV Field */}
             <div className="form-group">
               <div
-                className={`input-container ${
-                  mssvTouched
+                className={`input-container ${mssvTouched
                     ? isMssvValid
                       ? 'is-valid'
                       : 'is-invalid'
                     : ''
-                }`}
+                  }`}
               >
                 <span className="input-prefix-icon">
                   {/* User icon */}
@@ -185,13 +184,12 @@ export default function Login() {
             {/* Password Field */}
             <div className="form-group">
               <div
-                className={`input-container ${
-                  passwordTouched
+                className={`input-container ${passwordTouched
                     ? isPasswordValid
                       ? 'is-valid'
                       : 'is-invalid'
                     : ''
-                }`}
+                  }`}
               >
                 <span className="input-prefix-icon">
                   {/* Lock icon */}
