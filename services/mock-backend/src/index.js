@@ -32,9 +32,7 @@ const registrationSchema = new mongoose.Schema({
 const Course = mongoose.model('Course', courseSchema);
 const Registration = mongoose.model('Registration', registrationSchema);
 
-// ============================================
 // Routes
-// ============================================
 
 // Health check
 app.get('/health', (req, res) => {
@@ -88,6 +86,18 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// List registrations — dùng để verify flow end-to-end
+// Optional filter: ?studentId=B2012345
+app.get('/api/registrations', async (req, res) => {
+  try {
+    const filter = req.query.studentId ? { studentId: req.query.studentId } : {};
+    const registrations = await Registration.find(filter).sort({ timestamp: -1 });
+    res.json({ count: registrations.length, registrations });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Seed sample courses
 app.post('/api/seed', async (req, res) => {
   try {
@@ -109,9 +119,7 @@ app.post('/api/seed', async (req, res) => {
   }
 });
 
-// ============================================
 // Start server
-// ============================================
 mongoose
   .connect(MONGO_URI)
   .then(() => {
