@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import CourseRow from '../components/CourseRow';
 import ConfirmModal from '../components/ConfirmModal';
+import SuccessModal from '../components/SuccessModal';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
 
-// Mock additional metadata for TDTU course schedule & details (including Tuần)
+// Mock additional metadata for TDTU course schedule & details (with ---123456789012345--- format for Tuần)
 const MOCK_METADATA = {
-    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, Tuần 1-15', instructor: 'TS. Nguyễn Văn A' },
-    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, Tuần 1-15', instructor: 'PGS. TS. Trần Thị B' },
-    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, Tuần 1-15', instructor: 'ThS. Lê Hoàng C' },
-    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, Tuần 1-15', instructor: 'TS. Phạm Minh D' },
-    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, Tuần 1-15', instructor: 'TS. Đỗ Thanh E' },
+    CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, ---123456789012345---', instructor: 'TS. Nguyễn Văn A' },
+    CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, ---123456789012345---', instructor: 'PGS. TS. Trần Thị B' },
+    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, ---123456789012345---', instructor: 'ThS. Lê Hoàng C' },
+    CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, ---123456789012345---', instructor: 'TS. Phạm Minh D' },
+    CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, ---123456789012345---', instructor: 'TS. Đỗ Thanh E' },
 };
 
 export default function Register() {
@@ -28,6 +29,8 @@ export default function Register() {
     const [clickCount, setClickCount] = useState(0);
     const [resetMsg, setResetMsg] = useState('');
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+    const [successCount, setSuccessCount] = useState(0);
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
     // Fetch course catalog
@@ -39,7 +42,7 @@ export default function Register() {
                     ...c,
                     credits: MOCK_METADATA[c.courseId]?.credits || 3,
                     group: MOCK_METADATA[c.courseId]?.group || '01',
-                    schedule: MOCK_METADATA[c.courseId]?.schedule || '---012---, Thứ 4, Phòng C101, Tuần 1-15',
+                    schedule: MOCK_METADATA[c.courseId]?.schedule || '---012---, Thứ 4, Phòng C101, ---123456789012345---',
                     instructor: MOCK_METADATA[c.courseId]?.instructor || 'Giảng viên Khoa CNTT',
                 }));
                 setCourses(enriched);
@@ -153,6 +156,7 @@ export default function Register() {
     // Execute Unregistration Action
     async function confirmUnregisterAction() {
         setLoading(true);
+        const countToDrop = registeredCount;
         try {
             const res = await fetch(`${GATEWAY_URL}/api/unregister`, {
                 method: 'DELETE',
@@ -161,11 +165,16 @@ export default function Register() {
             });
             const data = await res.json();
             if (data.success || data.count > 0) {
+                // Instantly clear local states so UI resets immediately
                 setCart({});
                 setRegistrations([]);
                 setSelected(new Set());
                 fetchRegistrations();
                 fetchCourses();
+
+                // Open Success Notification Pop-up Modal
+                setSuccessCount(data.count || countToDrop);
+                setIsSuccessModalOpen(true);
             }
         } catch (err) {
             console.error('Failed to unregister courses:', err);
@@ -415,6 +424,13 @@ export default function Register() {
                 registeredCount={registeredCount}
                 registeredList={registeredList}
                 loading={loading}
+            />
+
+            {/* Success Pop-up Modal for Unregistration */}
+            <SuccessModal
+                isOpen={isSuccessModalOpen}
+                onClose={() => setIsSuccessModalOpen(false)}
+                count={successCount}
             />
         </div>
     );
