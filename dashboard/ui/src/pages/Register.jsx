@@ -135,6 +135,36 @@ export default function Register() {
         setLoading(false);
     }
 
+    // Unregister / Drop all registered courses for student
+    async function handleUnregister() {
+        if (registeredCount === 0 || loading) return;
+
+        if (!window.confirm(`Bạn có chắc chắn muốn HỦY TẤT CẢ ${registeredCount} môn học đã đăng ký? (Slot sẽ được nhường lại cho sinh viên khác)`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await fetch(`${GATEWAY_URL}/api/unregister`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ studentId: mssv }),
+            });
+            const data = await res.json();
+            if (data.success || data.count > 0) {
+                setCart({});
+                setRegistrations([]);
+                setSelected(new Set());
+                fetchRegistrations();
+                fetchCourses();
+            }
+        } catch (err) {
+            console.error('Failed to unregister courses:', err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     // Reset Queue Button for test cleanup
     async function handleResetQueue() {
         try {
@@ -261,14 +291,14 @@ export default function Register() {
                     </button>
 
                     <button
-                        onClick={() => setSelected(new Set())}
-                        disabled={selectedCount === 0}
-                        className={`px-4 py-2 rounded text-xs font-semibold text-red-900 shadow border border-sky-300 transition-all ${selectedCount === 0
+                        onClick={handleUnregister}
+                        disabled={registeredCount === 0 || loading}
+                        className={`px-4 py-2 rounded text-xs font-semibold shadow border transition-all ${registeredCount === 0 || loading
                             ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'bg-gradient-to-b from-gray-100 to-gray-200 hover:bg-gray-200 hover:shadow-md cursor-pointer'
+                            : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 hover:shadow-md cursor-pointer active:scale-95'
                             }`}
                     >
-                        Hủy chọn các môn
+                        Hủy các môn học đã đăng ký {registeredCount > 0 ? `(${registeredCount})` : ''}
                     </button>
                 </div>
 

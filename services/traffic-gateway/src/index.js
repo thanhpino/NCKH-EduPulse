@@ -84,6 +84,22 @@ app.get('/api/registrations', async (req, res) => {
     }
 });
 
+// 0.6. Unregister / Drop Courses Proxy
+app.delete('/api/unregister', async (req, res) => {
+    try {
+        const response = await fetch(`${config.MOCK_BACKEND_URL}/api/unregister`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+        });
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        logger.error('Error in /api/unregister proxy:', err.message);
+        res.status(502).json({ error: 'Failed to unregister courses' });
+    }
+});
+
 // 1. Join Queue — Enqueue student for a course
 app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
     if (!queue) {
