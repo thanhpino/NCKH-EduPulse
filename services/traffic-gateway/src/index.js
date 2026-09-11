@@ -93,12 +93,28 @@ app.delete('/api/unregister', async (req, res) => {
             body: JSON.stringify(req.body),
         });
         const data = await response.json();
+
+        if (response.ok && data.success) {
+            const { courseId } = req.body;
+            if (courseId) {
+                await redis.del(`course:${courseId}:full`);
+                logger.info(`🔄 [UNREGISTER] Cleared full cache for course ${courseId}`);
+            } else {
+                const fullKeys = await redis.keys('course:*:full');
+                if (fullKeys.length > 0) {
+                    await redis.del(...fullKeys);
+                }
+                logger.info('🔄 [UNREGISTER] Cleared all course full caches in Redis');
+            }
+        }
+
         res.status(response.status).json(data);
     } catch (err) {
         logger.error('Error in /api/unregister proxy:', err.message);
         res.status(502).json({ error: 'Failed to unregister courses' });
     }
 });
+
 
 // 0.7. Student Login (Proxy to Mock Backend)
 app.post('/api/login', async (req, res) => {
@@ -436,6 +452,10 @@ app.post('/api/queue/reset', async (req, res) => {
         if (ticketKeys.length > 0) {
             await redis.del(...ticketKeys);
         }
+        const fullKeys = await redis.keys('course:*:full');
+        if (fullKeys.length > 0) {
+            await redis.del(...fullKeys);
+        }
 
         // Also trigger seed on Mock Backend to reset MongoDB course slots and registrations
         let dbSeeded = false;
@@ -449,13 +469,14 @@ app.post('/api/queue/reset', async (req, res) => {
         logger.info('🧹 Queue, active tokens, and course slots reset successfully');
         res.json({
             message: 'System reset successfully: Redis queues cleared & MongoDB course slots reset to 0.',
-            clearedKeys: keys.length + ticketKeys.length,
+            clearedKeys: keys.length + ticketKeys.length + fullKeys.length,
             dbSeeded,
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // 8. Queue Stats (for Dashboard monitoring)
 app.get('/api/queue/stats', async (req, res) => {

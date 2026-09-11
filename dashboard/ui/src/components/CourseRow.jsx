@@ -190,3 +190,4 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
         </>
     );
 }
+    
