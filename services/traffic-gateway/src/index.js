@@ -130,6 +130,16 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
             return res.status(400).json({ error: 'studentId and courseId are required' });
         }
 
+        // [COURSE FULL CHECK] — Reject immediately if course is already full
+        const isFull = await redis.get(`course:${courseId}:full`);
+        if (isFull) {
+            return res.status(409).json({
+                status: 'course_full',
+                courseId,
+                message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
+            });
+        }
+
         const ticketId = uuidv4();
         const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
         const result = await queue.enqueue(ticketId, courseId, { studentId }, batchSize);
@@ -177,6 +187,19 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
     try {
         const { ticketId } = req.params;
         const courseId = req.query.courseId;
+
+        // [COURSE FULL CHECK] — Check if course is already full before anything else
+        if (courseId) {
+            const isFull = await redis.get(`course:${courseId}:full`);
+            if (isFull) {
+                return res.json({
+                    ticketId,
+                    courseId,
+                    status: 'course_full',
+                    message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
+                });
+            }
+        }
 
         // Check token first (if already admitted)
         const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
@@ -316,7 +339,24 @@ app.post('/api/register', async (req, res) => {
             // Revoke token upon successful registration
             const revokeFn = token.revokeToken ? token.revokeToken.bind(token) : token.revoke.bind(token);
             await revokeFn(ticketId, courseId);
-            // Trigger admission loop right away so slot gets filled fast
+
+            // [COURSE FULL CHECK] — After successful registration, check if course is now full
+            try {
+                const courseRes = await fetch(`${config.MOCK_BACKEND_URL}/api/courses`);
+                const allCourses = await courseRes.json();
+                const thisCourse = allCourses.find(c => c.courseId === courseId);
+                if (thisCourse && thisCourse.enrolled >= thisCourse.maxSlots) {
+                    // Mark course as full in Redis (TTL 2 hours)
+                    await redis.set(`course:${courseId}:full`, '1', 'EX', 7200);
+                    // Clear the entire waiting queue — no point keeping students waiting
+                    if (queue) await queue.clearQueue(courseId);
+                    logger.info(`📛 Course ${courseId} is now FULL (${thisCourse.enrolled}/${thisCourse.maxSlots}). Queue cleared.`);
+                }
+            } catch (e) {
+                logger.warn(`Could not check course full status for ${courseId}:`, e.message);
+            }
+
+            // Trigger admission loop right away so remaining slots get filled fast
             if (admission) {
                 admission.admitBatch(courseId).catch(e => logger.error('Error admitting next batch', e));
             }

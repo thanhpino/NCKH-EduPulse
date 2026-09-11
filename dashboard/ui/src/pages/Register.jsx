@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SuccessModal from '../components/SuccessModal';
 import InfoModal from '../components/InfoModal';
 import StudyPlanModal from '../components/StudyPlanModal';
+import CourseFullModal from '../components/CourseFullModal';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
 
@@ -36,6 +37,8 @@ export default function Register() {
     const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('register'); // 'register' | 'plan' | 'info'
     const [successCount, setSuccessCount] = useState(0);
+    // Course Full Modal state
+    const [courseFullInfo, setCourseFullInfo] = useState(null); // { courseId, courseName }
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
     // Fetch course catalog
@@ -159,7 +162,24 @@ export default function Register() {
             fetchRegistrations();
             fetchCourses();
         }
-    }, [fetchRegistrations, fetchCourses]);
+
+        // Show course full popup — clear cart entry so row resets to idle
+        if (newStatus === 'course_full') {
+            const courseInfo = courses.find((c) => c.courseId === courseId);
+            setCourseFullInfo({ courseId, courseName: courseInfo?.courseName || courseId });
+            setCart((prev) => {
+                const next = { ...prev };
+                delete next[courseId];
+                return next;
+            });
+            setSelected((prev) => {
+                const next = new Set(prev);
+                next.delete(courseId);
+                return next;
+            });
+            fetchCourses(); // refresh slots on table
+        }
+    }, [fetchRegistrations, fetchCourses, courses]);
 
     function toggleSelect(courseId) {
         setSelected((prev) => {
@@ -498,6 +518,14 @@ export default function Register() {
                 isOpen={isSuccessModalOpen}
                 onClose={() => setIsSuccessModalOpen(false)}
                 count={successCount}
+            />
+
+            {/* Course Full Pop-up Modal */}
+            <CourseFullModal
+                isOpen={!!courseFullInfo}
+                courseId={courseFullInfo?.courseId}
+                courseName={courseFullInfo?.courseName}
+                onClose={() => setCourseFullInfo(null)}
             />
 
             {/* Software Info & Team Developer Modal */}
