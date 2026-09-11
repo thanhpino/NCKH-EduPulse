@@ -130,15 +130,35 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
             return res.status(400).json({ error: 'studentId and courseId are required' });
         }
 
-        // [COURSE FULL CHECK] — Reject immediately if course is already full
-        const isFull = await redis.get(`course:${courseId}:full`);
-        if (isFull) {
+        // [COURSE FULL CHECK] — Check Redis cache first, then fall back to source-of-truth (Mock Backend)
+        // Redis flag may be stale/missing if slots were filled externally (e.g. k6 load test)
+        let courseFull = await redis.get(`course:${courseId}:full`);
+        if (!courseFull) {
+            // Not in cache — query Mock Backend directly as source of truth
+            try {
+                const courseRes = await fetch(`${config.MOCK_BACKEND_URL}/api/courses`);
+                const allCourses = await courseRes.json();
+                const thisCourse = allCourses.find(c => c.courseId === courseId);
+                if (thisCourse && thisCourse.enrolled >= thisCourse.maxSlots) {
+                    // Course is full — cache it in Redis and clear stale queue
+                    courseFull = '1';
+                    await redis.set(`course:${courseId}:full`, '1', 'EX', 7200);
+                    if (queue) await queue.clearQueue(courseId);
+                    logger.info(`📛 [JOIN] Course ${courseId} is FULL (${thisCourse.enrolled}/${thisCourse.maxSlots}). Cached in Redis.`);
+                }
+            } catch (e) {
+                logger.warn(`[JOIN] Could not verify course capacity for ${courseId}: ${e.message}`);
+            }
+        }
+
+        if (courseFull) {
             return res.status(409).json({
                 status: 'course_full',
                 courseId,
                 message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
             });
         }
+
 
         const ticketId = uuidv4();
         const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;

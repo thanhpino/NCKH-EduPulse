@@ -206,6 +206,14 @@ export default function Register() {
                     });
                     const data = await res.json();
 
+                    // Course full — show popup immediately, don't enter queue
+                    if (res.status === 409 && data.status === 'course_full') {
+                        const courseInfo = courses.find((c) => c.courseId === courseId);
+                        setCourseFullInfo({ courseId, courseName: courseInfo?.courseName || courseId });
+                        setSelected((prev) => { const s = new Set(prev); s.delete(courseId); return s; });
+                        return;
+                    }
+
                     setCart((prev) => ({
                         ...prev,
                         [courseId]: {
@@ -218,6 +226,7 @@ export default function Register() {
                 }
             })
         );
+
 
         setLoading(false);
     }
