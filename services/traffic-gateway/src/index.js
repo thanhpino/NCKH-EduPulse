@@ -235,6 +235,43 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
                     message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
                 });
             }
+
+            // Trigger admission loop right away so remaining slots get filled fast
+            if (admission) {
+                admission.admitBatch(courseId).catch(e => logger.error('Error admitting next batch', e));
+            }
+            return res.status(result.status).json(result.data);
+        } else {
+            return res.status(result.status).json({ error: result.error });
+        }
+    } catch (err) {
+        logger.error('Error in /api/register:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 6. Direct Pass-Through Register Endpoint (for fallback testing or emergency)
+app.post('/api/register/direct', async (req, res) => {
+    try {
+        const { studentId, courseId } = req.body;
+        if (!studentId || !courseId) {
+            return res.status(400).json({ error: 'studentId and courseId are required' });
+        }
+        const result = await fallback.passThroughRegister(studentId, courseId);
+        res.status(result.status).json(result.data || { error: result.error });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 7. Config Update Endpoint (called by Capacity Advisor)
+app.put(['/api/config/admission-rate', '/api/queue/config'], (req, res) => {
+    try {
+        const { rate, batchSize } = req.body;
+        const newSize = batchSize || rate;
+        if (!newSize || newSize < 1) {
+            return res.status(400).json({ error: 'batchSize / rate must be >= 1' });
+
         }
 
         // Check token first (if already admitted)
