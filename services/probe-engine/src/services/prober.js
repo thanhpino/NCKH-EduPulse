@@ -32,7 +32,10 @@ let targets = [
 ];
 
 const consecutiveFailuresMap = new Map();
+const highLatencyCountMap = new Map();
 const FAILURE_ALERT_THRESHOLD = 3;
+const LATENCY_SLA_THRESHOLD_MS = parseInt(process.env.LATENCY_SLA_MS) || 1500;
+const HIGH_LATENCY_ALERT_THRESHOLD = 2;
 
 let probeIntervalTimer = null;
 let currentIntervalMs = parseInt(process.env.PROBE_INTERVAL_MS) || 5000;
@@ -62,6 +65,25 @@ async function probeTarget(target) {
 
         // Reset consecutive failure counter on success
         consecutiveFailuresMap.set(target.id, 0);
+
+        // Check Latency SLA Spike
+        if (latency > LATENCY_SLA_THRESHOLD_MS) {
+            const highCount = (highLatencyCountMap.get(target.id) || 0) + 1;
+            highLatencyCountMap.set(target.id, highCount);
+
+            if (highCount >= HIGH_LATENCY_ALERT_THRESHOLD) {
+                dispatchAlert({
+                    target,
+                    triggerType: 'LATENCY_SPIKE',
+                    severity: 'WARNING',
+                    consecutiveFailures: 0,
+                    errorType: 'HIGH_LATENCY_SLA_EXCEEDED',
+                    errorMsg: `Latency (${latency}ms) breached SLA threshold (${LATENCY_SLA_THRESHOLD_MS}ms) for ${highCount} consecutive probes`,
+                });
+            }
+        } else {
+            highLatencyCountMap.set(target.id, 0);
+        }
 
         await recordMetric({
             target_id: target.id,
@@ -115,7 +137,6 @@ async function runProbeCycle() {
     const summary = cycleData.map((val) => `${val.id}: ${val.latency}ms [${val.isError ? '❌ ' + val.errorType : '✅ OK'}]`);
     console.log(`🔍 Probe Cycle (${new Date().toLocaleTimeString()}): ${summary.join(' | ')}`);
 
-    // Broadcast live telemetry update to SSE stream clients
     broadcastMetricsUpdate(cycleData);
     return cycleData;
 }
@@ -123,7 +144,7 @@ async function runProbeCycle() {
 function startProbing(intervalMs = currentIntervalMs) {
     if (probeIntervalTimer) clearInterval(probeIntervalTimer);
     currentIntervalMs = intervalMs;
-    console.log(`⚙️ Probing loop running every ${currentIntervalMs}ms`);
+    console.log(`⚙️ Probing loop running every ${currentIntervalMs}ms (Latency SLA: ${LATENCY_SLA_THRESHOLD_MS}ms)`);
 
     runProbeCycle();
     probeIntervalTimer = setInterval(runProbeCycle, currentIntervalMs);
@@ -136,7 +157,9 @@ function stopProbing() {
 module.exports = {
     targets,
     consecutiveFailuresMap,
+    highLatencyCountMap,
     FAILURE_ALERT_THRESHOLD,
+    LATENCY_SLA_THRESHOLD_MS,
     runProbeCycle,
     startProbing,
     stopProbing,

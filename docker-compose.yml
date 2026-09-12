@@ -135,8 +135,10 @@ services:
       - MOCK_BACKEND_URL=http://mock-backend:3010
       - REGISTRY_SERVICE_URL=http://registry-service:3001
       - ALERT_SERVICE_URL=http://alert-service:3005
+      - REDIS_URL=redis://redis-gateway:6379
     depends_on:
       - timescaledb
+      - redis-gateway
       - traffic-gateway
       - mock-backend
       - registry-service

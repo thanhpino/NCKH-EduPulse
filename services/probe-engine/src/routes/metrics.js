@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { pool, isDbConnected, isHypertableSupported, getMetricsBuffer } = require('../config/db');
-const { targets, consecutiveFailuresMap, FAILURE_ALERT_THRESHOLD, getCurrentInterval } = require('../services/prober');
+const { getCache, setCache, isRedisConnected } = require('../config/redis');
+const { targets, consecutiveFailuresMap, highLatencyCountMap, FAILURE_ALERT_THRESHOLD, getCurrentInterval, LATENCY_SLA_THRESHOLD_MS } = require('../services/prober');
 const { addSseClient, getActiveClientCount } = require('../services/stream');
 
 // GET /health & GET /api/health — Service health check
@@ -11,7 +12,9 @@ router.get(['/health', '/api/health'], (req, res) => {
         service: 'probe-engine',
         dbConnected: isDbConnected(),
         hypertable: isHypertableSupported(),
+        redisConnected: isRedisConnected(),
         probeIntervalMs: getCurrentInterval(),
+        latencySlaMs: LATENCY_SLA_THRESHOLD_MS,
         activeTargets: targets.length,
         bufferedMetrics: getMetricsBuffer().length,
         sseClients: getActiveClientCount(),
@@ -40,9 +43,16 @@ router.get('/metrics', async (req, res) => {
     res.json(filtered.slice(0, limit));
 });
 
-// GET /api/metrics/aggregate — Primary telemetry API consumed by Capacity Advisor
+// GET /api/metrics/aggregate — Aggregated Telemetry with P50, P90, P99 Percentiles & Redis Caching
 router.get('/metrics/aggregate', async (req, res) => {
     const { target_id, interval = '1 minute', range = '1 hour' } = req.query;
+    const cacheKey = `probe_aggregate:${target_id || 'all'}:${interval}:${range}`;
+
+    // 1. Check Redis Cache (5-second TTL)
+    const cached = await getCache(cacheKey);
+    if (cached) {
+        return res.json(cached);
+    }
 
     if (isDbConnected()) {
         try {
@@ -54,6 +64,9 @@ router.get('/metrics/aggregate', async (req, res) => {
                         target_id,
                         AVG(latency_ms) AS avg_latency,
                         MAX(latency_ms) AS max_latency,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms) AS p50_latency,
+                        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY latency_ms) AS p90_latency,
+                        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms) AS p99_latency,
                         COUNT(*) FILTER (WHERE is_error) AS error_count,
                         COUNT(*) AS total_probes,
                         COALESCE((COUNT(*) FILTER (WHERE is_error))::float / NULLIF(COUNT(*), 0), 0) AS error_rate
@@ -70,6 +83,9 @@ router.get('/metrics/aggregate', async (req, res) => {
                         target_id,
                         AVG(latency_ms) AS avg_latency,
                         MAX(latency_ms) AS max_latency,
+                        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms) AS p50_latency,
+                        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY latency_ms) AS p90_latency,
+                        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms) AS p99_latency,
                         COUNT(*) FILTER (WHERE is_error) AS error_count,
                         COUNT(*) AS total_probes,
                         COALESCE((COUNT(*) FILTER (WHERE is_error))::float / NULLIF(COUNT(*), 0), 0) AS error_rate
@@ -82,6 +98,9 @@ router.get('/metrics/aggregate', async (req, res) => {
             }
 
             const result = await pool.query(query, [interval, range, target_id || null]);
+
+            // Cache result in Redis for 5 seconds
+            await setCache(cacheKey, result.rows, 5);
             return res.json(result.rows);
         } catch (err) {
             console.error('Aggregate query error:', err.message);
@@ -91,8 +110,14 @@ router.get('/metrics/aggregate', async (req, res) => {
     res.json([]);
 });
 
-// GET /api/metrics/summary — Real-time Health Status Summary per target
+// GET /api/metrics/summary — Real-time Health Summary with P50/P90/P99 & SLA Status
 router.get('/metrics/summary', async (req, res) => {
+    const cacheKey = 'probe_summary:5m';
+    const cached = await getCache(cacheKey);
+    if (cached) {
+        return res.json(cached);
+    }
+
     if (isDbConnected()) {
         try {
             const query = `
@@ -100,6 +125,9 @@ router.get('/metrics/summary', async (req, res) => {
                     target_id,
                     AVG(latency_ms) AS avg_latency,
                     MAX(latency_ms) AS max_latency,
+                    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms) AS p50_latency,
+                    PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY latency_ms) AS p90_latency,
+                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms) AS p99_latency,
                     COUNT(*) FILTER (WHERE is_error) AS error_count,
                     COUNT(*) AS total_probes,
                     COALESCE((COUNT(*) FILTER (WHERE is_error))::float / NULLIF(COUNT(*), 0), 0) AS error_rate
@@ -110,14 +138,23 @@ router.get('/metrics/summary', async (req, res) => {
             const result = await pool.query(query);
             const summary = result.rows.map((row) => {
                 const failures = consecutiveFailuresMap.get(row.target_id) || 0;
+                const highLatencyCount = highLatencyCountMap.get(row.target_id) || 0;
+
                 let status = 'HEALTHY';
                 if (failures >= FAILURE_ALERT_THRESHOLD || row.error_rate > 0.2 || row.avg_latency > 2000) {
                     status = 'CRITICAL';
-                } else if (row.error_rate > 0.05 || row.avg_latency > 500) {
+                } else if (highLatencyCount >= 2 || row.error_rate > 0.05 || row.avg_latency > 500) {
                     status = 'WARNING';
                 }
-                return { ...row, consecutiveFailures: failures, status };
+                return {
+                    ...row,
+                    consecutiveFailures: failures,
+                    highLatencyCount,
+                    status,
+                };
             });
+
+            await setCache(cacheKey, summary, 5);
             return res.json(summary);
         } catch (err) {
             console.error('Summary query error:', err.message);
@@ -140,7 +177,7 @@ router.get('/metrics/triggers', async (req, res) => {
     res.json([]);
 });
 
-// GET /api/metrics/stream — Server-Sent Events (SSE) Live Stream Endpoint for Admin Dashboard
+// GET /api/metrics/stream — Server-Sent Events (SSE) Live Stream Endpoint
 router.get('/metrics/stream', (req, res) => {
     addSseClient(req, res);
 });
