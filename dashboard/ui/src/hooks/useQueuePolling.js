@@ -6,6 +6,7 @@ const POLL_INTERVAL = 1500;
 /**
  * Custom hook — poll trạng thái hàng đợi + tự động advance qua các bước:
  *   waiting → PENDING_ENTRY → /api/session/enter → ACTIVE → /api/register → DONE
+ *   Nếu server trả về course_full → dừng ngay, callback báo về UI hiện popup.
  *
  * @param {string|null} ticketId      - ID vé từ /api/queue/join
  * @param {string}      courseId      - Mã môn học
@@ -30,7 +31,7 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus, on
     }, [initialStatus]);
 
     useEffect(() => {
-        if (!ticketId || status === 'DONE') return;
+        if (!ticketId || status === 'DONE' || status === 'course_full') return;
 
         async function checkAndAdvance() {
             try {
@@ -39,6 +40,16 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus, on
                 );
                 if (!res.ok) throw new Error(`Poll failed: ${res.status}`);
                 const data = await res.json();
+
+                // COURSE FULL — stop polling immediately, notify parent to show popup
+                if (data.status === 'course_full') {
+                    clearInterval(intervalRef.current);
+                    setStatus('course_full');
+                    setPosition(null);
+                    setEta(null);
+                    onStatusChange?.(courseId, 'course_full');
+                    return;
+                }
 
                 setPosition(data.position ?? null);
                 setEta(data.estimatedWaitSeconds ?? null);
@@ -72,7 +83,15 @@ export function useQueuePolling(ticketId, courseId, studentId, initialStatus, on
                         onStatusChange?.(courseId, 'DONE');
                         clearInterval(intervalRef.current);
                     } else {
-                        console.error(`[useQueuePolling] register failed for ${courseId}: ${regRes.status}`);
+                        const errData = await regRes.json().catch(() => ({}));
+                        // Handle course full at registration time (race condition edge case)
+                        if (regRes.status === 409 || errData?.error?.includes('full')) {
+                            clearInterval(intervalRef.current);
+                            setStatus('course_full');
+                            onStatusChange?.(courseId, 'course_full');
+                        } else {
+                            console.error(`[useQueuePolling] register failed for ${courseId}: ${regRes.status}`);
+                        }
                     }
                     processingRef.current = false;
                     return;

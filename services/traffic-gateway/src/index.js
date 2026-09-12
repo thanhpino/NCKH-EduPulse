@@ -93,12 +93,28 @@ app.delete('/api/unregister', async (req, res) => {
             body: JSON.stringify(req.body),
         });
         const data = await response.json();
+
+        if (response.ok && data.success) {
+            const { courseId } = req.body;
+            if (courseId) {
+                await redis.del(`course:${courseId}:full`);
+                logger.info(`🔄 [UNREGISTER] Cleared full cache for course ${courseId}`);
+            } else {
+                const fullKeys = await redis.keys('course:*:full');
+                if (fullKeys.length > 0) {
+                    await redis.del(...fullKeys);
+                }
+                logger.info('🔄 [UNREGISTER] Cleared all course full caches in Redis');
+            }
+        }
+
         res.status(response.status).json(data);
     } catch (err) {
         logger.error('Error in /api/unregister proxy:', err.message);
         res.status(502).json({ error: 'Failed to unregister courses' });
     }
 });
+
 
 // 0.7. Student Login (Proxy to Mock Backend)
 app.post('/api/login', async (req, res) => {
@@ -129,6 +145,36 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
         if (!studentId || !courseId) {
             return res.status(400).json({ error: 'studentId and courseId are required' });
         }
+
+        // [COURSE FULL CHECK] — Check Redis cache first, then fall back to source-of-truth (Mock Backend)
+        // Redis flag may be stale/missing if slots were filled externally (e.g. k6 load test)
+        let courseFull = await redis.get(`course:${courseId}:full`);
+        if (!courseFull) {
+            // Not in cache — query Mock Backend directly as source of truth
+            try {
+                const courseRes = await fetch(`${config.MOCK_BACKEND_URL}/api/courses`);
+                const allCourses = await courseRes.json();
+                const thisCourse = allCourses.find(c => c.courseId === courseId);
+                if (thisCourse && thisCourse.enrolled >= thisCourse.maxSlots) {
+                    // Course is full — cache it in Redis and clear stale queue
+                    courseFull = '1';
+                    await redis.set(`course:${courseId}:full`, '1', 'EX', 7200);
+                    if (queue) await queue.clearQueue(courseId);
+                    logger.info(`📛 [JOIN] Course ${courseId} is FULL (${thisCourse.enrolled}/${thisCourse.maxSlots}). Cached in Redis.`);
+                }
+            } catch (e) {
+                logger.warn(`[JOIN] Could not verify course capacity for ${courseId}: ${e.message}`);
+            }
+        }
+
+        if (courseFull) {
+            return res.status(409).json({
+                status: 'course_full',
+                courseId,
+                message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
+            });
+        }
+
 
         const ticketId = uuidv4();
         const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
@@ -177,6 +223,19 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
     try {
         const { ticketId } = req.params;
         const courseId = req.query.courseId;
+
+        // [COURSE FULL CHECK] — Check if course is already full before anything else
+        if (courseId) {
+            const isFull = await redis.get(`course:${courseId}:full`);
+            if (isFull) {
+                return res.json({
+                    ticketId,
+                    courseId,
+                    status: 'course_full',
+                    message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
+                });
+            }
+        }
 
         // Check token first (if already admitted)
         const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
@@ -316,7 +375,24 @@ app.post('/api/register', async (req, res) => {
             // Revoke token upon successful registration
             const revokeFn = token.revokeToken ? token.revokeToken.bind(token) : token.revoke.bind(token);
             await revokeFn(ticketId, courseId);
-            // Trigger admission loop right away so slot gets filled fast
+
+            // [COURSE FULL CHECK] — After successful registration, check if course is now full
+            try {
+                const courseRes = await fetch(`${config.MOCK_BACKEND_URL}/api/courses`);
+                const allCourses = await courseRes.json();
+                const thisCourse = allCourses.find(c => c.courseId === courseId);
+                if (thisCourse && thisCourse.enrolled >= thisCourse.maxSlots) {
+                    // Mark course as full in Redis (TTL 2 hours)
+                    await redis.set(`course:${courseId}:full`, '1', 'EX', 7200);
+                    // Clear the entire waiting queue — no point keeping students waiting
+                    if (queue) await queue.clearQueue(courseId);
+                    logger.info(`📛 Course ${courseId} is now FULL (${thisCourse.enrolled}/${thisCourse.maxSlots}). Queue cleared.`);
+                }
+            } catch (e) {
+                logger.warn(`Could not check course full status for ${courseId}:`, e.message);
+            }
+
+            // Trigger admission loop right away so remaining slots get filled fast
             if (admission) {
                 admission.admitBatch(courseId).catch(e => logger.error('Error admitting next batch', e));
             }
@@ -376,6 +452,10 @@ app.post('/api/queue/reset', async (req, res) => {
         if (ticketKeys.length > 0) {
             await redis.del(...ticketKeys);
         }
+        const fullKeys = await redis.keys('course:*:full');
+        if (fullKeys.length > 0) {
+            await redis.del(...fullKeys);
+        }
 
         // Also trigger seed on Mock Backend to reset MongoDB course slots and registrations
         let dbSeeded = false;
@@ -389,13 +469,14 @@ app.post('/api/queue/reset', async (req, res) => {
         logger.info('🧹 Queue, active tokens, and course slots reset successfully');
         res.json({
             message: 'System reset successfully: Redis queues cleared & MongoDB course slots reset to 0.',
-            clearedKeys: keys.length + ticketKeys.length,
+            clearedKeys: keys.length + ticketKeys.length + fullKeys.length,
             dbSeeded,
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // 8. Queue Stats (for Dashboard monitoring)
 app.get('/api/queue/stats', async (req, res) => {

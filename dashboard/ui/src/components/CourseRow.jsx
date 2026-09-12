@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueuePolling } from '../hooks/useQueuePolling';
 import StatusBadge from './StatusBadge';
 
@@ -7,7 +7,7 @@ import StatusBadge from './StatusBadge';
  * Tông màu đỏ mận mượt mà (TDTU Brand Crimson Red) dễ nhận diện, bỏ các khung trống 
  * không cần thiết (Mã MH, Số TC, Sĩ số, Trạng thái) và căn chỉnh 3 khối dữ liệu chuẩn cột.
  */
-export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex, onStatusChange }) {
+export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex, onStatusChange, onGroupChange }) {
     const { status, position, eta } = useQueuePolling(
         cartEntry?.ticketId ?? null,
         course.courseId,
@@ -42,6 +42,18 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
     ];
 
     const [selectedGroupCode, setSelectedGroupCode] = useState(course.group || '01');
+
+    // Notify parent on mount (initial group) and group change
+    const handleGroupChange = (groupCode) => {
+        setSelectedGroupCode(groupCode);
+        if (onGroupChange) onGroupChange(course.courseId, groupCode);
+    };
+
+    // Notify parent of initial group on mount
+    useEffect(() => {
+        if (onGroupChange) onGroupChange(course.courseId, selectedGroupCode);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Get active schedule & instructor matching selected group
     const activeGroup = groups.find((g) => g.group === selectedGroupCode) || groups[0];
@@ -137,7 +149,8 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                             key={g.group}
                             onClick={() => {
                                 if (!alreadyRegistered) {
-                                    setSelectedGroupCode(g.group);
+                                    handleGroupChange(g.group);
+                                    if (!isSelected) onToggle();
                                 }
                             }}
                             className={`border-b text-xs transition-all cursor-pointer ${isThisGroupSelected
@@ -153,7 +166,7 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                                         type="radio"
                                         name={`group-${course.courseId}`}
                                         checked={isThisGroupSelected}
-                                        onChange={() => setSelectedGroupCode(g.group)}
+                                        onChange={() => handleGroupChange(g.group)}
                                         disabled={alreadyRegistered}
                                         className="accent-[#8C0000] cursor-pointer h-3.5 w-3.5"
                                     />
