@@ -16,17 +16,17 @@ const probeClient = axios.create({
 let targets = [
     {
         id: 'traffic-gateway',
-        url: process.env.GATEWAY_URL || 'http://localhost:3002',
+        url: process.env.GATEWAY_URL || 'http://traffic-gateway:3002',
         healthEndpoint: '/health',
     },
     {
         id: 'mock-backend',
-        url: process.env.MOCK_BACKEND_URL || 'http://localhost:3010',
+        url: process.env.MOCK_BACKEND_URL || 'http://mock-backend:3010',
         healthEndpoint: '/health',
     },
     {
         id: 'registry-service',
-        url: process.env.REGISTRY_SERVICE_URL || 'http://localhost:3001',
+        url: process.env.REGISTRY_SERVICE_URL || 'http://registry-service:3001',
         healthEndpoint: '/health',
     },
 ];

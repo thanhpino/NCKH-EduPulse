@@ -15,9 +15,10 @@ const PORT = process.env.PORT || 3003;
 app.use(cors());
 app.use(express.json());
 
-// Wire modular routes
-app.use('/', metricsRouter);
+// Wire modular routes under /api and root /health
+app.use('/api', metricsRouter);
 app.use('/api', targetsRouter);
+app.get('/health', (req, res) => res.redirect('/api/health'));
 
 // ============================================
 // Graceful Shutdown Handler

@@ -131,8 +131,16 @@ services:
       - PORT=3003
       - TIMESCALE_URL=postgres://probe:probe_pass@timescaledb:5432/edupulse_metrics
       - PROBE_INTERVAL_MS=${PROBE_INTERVAL_MS:-5000}
+      - GATEWAY_URL=http://traffic-gateway:3002
+      - MOCK_BACKEND_URL=http://mock-backend:3010
+      - REGISTRY_SERVICE_URL=http://registry-service:3001
+      - ALERT_SERVICE_URL=http://alert-service:3005
     depends_on:
       - timescaledb
+      - traffic-gateway
+      - mock-backend
+      - registry-service
+      - alert-service
     networks:
       - edupulse-net
     restart: unless-stopped
