@@ -29,7 +29,7 @@ export default function InfoModal({ isOpen, onClose }) {
                     <div className="bg-sky-50 border-l-4 border-[#005B7F] p-3 rounded text-sky-900">
                         <h4 className="font-bold text-sm text-[#005B7F] mb-1">EduPulse Traffic Gateway System</h4>
                         <p className="leading-relaxed">
-                            Hệ thống Cổng điều tiết tải Đăng ký Tín chỉ Thời gian thực</p>
+                            Hệ thống Cổng điều tiết tải Đăng ký Tín chỉ cho các bạn sinh viên</p>
                     </div>
 
                     {/* Team Members */}
@@ -41,7 +41,7 @@ export default function InfoModal({ isOpen, onClose }) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-50 border border-gray-200 p-3 rounded flex items-center space-x-3">
                                 <div className="w-9 h-9 rounded-full bg-[#005B7F] text-white font-bold text-xs flex items-center justify-center shadow">
-                                    PT
+                                    MT
                                 </div>
                                 <div>
                                     <div className="font-bold text-gray-900">Trương Minh Thành</div>
@@ -51,7 +51,7 @@ export default function InfoModal({ isOpen, onClose }) {
 
                             <div className="bg-gray-50 border border-gray-200 p-3 rounded flex items-center space-x-3">
                                 <div className="w-9 h-9 rounded-full bg-[#8C0000] text-white font-bold text-xs flex items-center justify-center shadow">
-                                    PP
+                                    TP
                                 </div>
                                 <div>
                                     <div className="font-bold text-gray-900">Huỳnh Trần Thiên Phú</div>
