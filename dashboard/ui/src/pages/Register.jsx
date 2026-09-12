@@ -38,7 +38,9 @@ export default function Register() {
     const [activeTab, setActiveTab] = useState('register'); // 'register' | 'plan' | 'info'
     const [successCount, setSuccessCount] = useState(0);
     // Course Full Modal state
-    const [courseFullInfo, setCourseFullInfo] = useState(null); // { courseId, courseName }
+    const [courseFullInfo, setCourseFullInfo] = useState(null); // { courseId, courseName, group, groups }
+    // Track selected group per course
+    const [selectedGroups, setSelectedGroups] = useState({}); // courseId → groupCode
     const isDebugMode = searchParams.get('debug') === 'true' || clickCount >= 3;
 
     // Fetch course catalog
@@ -166,7 +168,13 @@ export default function Register() {
         // Show course full popup — clear cart entry so row resets to idle
         if (newStatus === 'course_full') {
             const courseInfo = courses.find((c) => c.courseId === courseId);
-            setCourseFullInfo({ courseId, courseName: courseInfo?.courseName || courseId });
+            const currentGroup = selectedGroups[courseId] || courseInfo?.group || '01';
+            setCourseFullInfo({
+                courseId,
+                courseName: courseInfo?.courseName || courseId,
+                group: currentGroup,
+                groups: courseInfo?.groups || [],
+            });
             setCart((prev) => {
                 const next = { ...prev };
                 delete next[courseId];
@@ -179,7 +187,7 @@ export default function Register() {
             });
             fetchCourses(); // refresh slots on table
         }
-    }, [fetchRegistrations, fetchCourses, courses]);
+    }, [fetchRegistrations, fetchCourses, courses, selectedGroups]);
 
     function toggleSelect(courseId) {
         setSelected((prev) => {
@@ -209,7 +217,13 @@ export default function Register() {
                     // Course full — show popup immediately, don't enter queue
                     if (res.status === 409 && data.status === 'course_full') {
                         const courseInfo = courses.find((c) => c.courseId === courseId);
-                        setCourseFullInfo({ courseId, courseName: courseInfo?.courseName || courseId });
+                        const currentGroup = selectedGroups[courseId] || courseInfo?.group || '01';
+                        setCourseFullInfo({
+                            courseId,
+                            courseName: courseInfo?.courseName || courseId,
+                            group: currentGroup,
+                            groups: courseInfo?.groups || [],
+                        });
                         setSelected((prev) => { const s = new Set(prev); s.delete(courseId); return s; });
                         return;
                     }
@@ -468,6 +482,7 @@ export default function Register() {
                                             studentId={mssv}
                                             rowIndex={idx}
                                             onStatusChange={handleStatusChange}
+                                            onGroupChange={(cId, groupCode) => setSelectedGroups(prev => ({ ...prev, [cId]: groupCode }))}
                                         />
                                     ))
                                 )}
@@ -534,6 +549,9 @@ export default function Register() {
                 isOpen={!!courseFullInfo}
                 courseId={courseFullInfo?.courseId}
                 courseName={courseFullInfo?.courseName}
+                group={courseFullInfo?.group}
+                groups={courseFullInfo?.groups || []}
+                isCourseFullyFull={true}
                 onClose={() => setCourseFullInfo(null)}
             />
 
