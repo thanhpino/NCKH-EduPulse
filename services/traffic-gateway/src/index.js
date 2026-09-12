@@ -115,7 +115,6 @@ app.delete('/api/unregister', async (req, res) => {
     }
 });
 
-
 // 0.7. Student Login (Proxy to Mock Backend)
 app.post('/api/login', async (req, res) => {
     try {
@@ -146,17 +145,14 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
             return res.status(400).json({ error: 'studentId and courseId are required' });
         }
 
-        // [COURSE FULL CHECK] — Check Redis cache first, then fall back to source-of-truth (Mock Backend)
-        // Redis flag may be stale/missing if slots were filled externally (e.g. k6 load test)
+        // [COURSE FULL CHECK] — Check Redis cache first, then source-of-truth (Mock Backend)
         let courseFull = await redis.get(`course:${courseId}:full`);
         if (!courseFull) {
-            // Not in cache — query Mock Backend directly as source of truth
             try {
                 const courseRes = await fetch(`${config.MOCK_BACKEND_URL}/api/courses`);
                 const allCourses = await courseRes.json();
                 const thisCourse = allCourses.find(c => c.courseId === courseId);
                 if (thisCourse && thisCourse.enrolled >= thisCourse.maxSlots) {
-                    // Course is full — cache it in Redis and clear stale queue
                     courseFull = '1';
                     await redis.set(`course:${courseId}:full`, '1', 'EX', 7200);
                     if (queue) await queue.clearQueue(courseId);
@@ -174,7 +170,6 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
                 message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
             });
         }
-
 
         const ticketId = uuidv4();
         const batchSize = admission ? admission.getBatchSize() : config.BATCH_SIZE;
@@ -194,7 +189,6 @@ app.post('/api/queue/join', fallback.requireRedis, async (req, res) => {
         const position = await queue.getPosition(ticketId, courseId);
         const totalInQueue = await queue.getQueueLength(courseId);
 
-        // Wave-based ETA calculation (Waves needed * ACTIVE_TTL)
         const wavesNeeded = Math.ceil(position / batchSize);
         const estimatedWaitSeconds = wavesNeeded * config.ACTIVE_TTL;
 
@@ -224,7 +218,7 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
         const { ticketId } = req.params;
         const courseId = req.query.courseId;
 
-        // [COURSE FULL CHECK] — Check if course is already full before anything else
+        // [COURSE FULL CHECK] — Check if course is already full
         if (courseId) {
             const isFull = await redis.get(`course:${courseId}:full`);
             if (isFull) {
@@ -235,47 +229,10 @@ app.get('/api/queue/status/:ticketId', fallback.requireRedis, async (req, res) =
                     message: 'Môn học đã đủ sĩ số. Vui lòng chọn nhóm khác còn trống slot hoặc chờ kỳ sau đăng ký.',
                 });
             }
-
-            // Trigger admission loop right away so remaining slots get filled fast
-            if (admission) {
-                admission.admitBatch(courseId).catch(e => logger.error('Error admitting next batch', e));
-            }
-            return res.status(result.status).json(result.data);
-        } else {
-            return res.status(result.status).json({ error: result.error });
-        }
-    } catch (err) {
-        logger.error('Error in /api/register:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 6. Direct Pass-Through Register Endpoint (for fallback testing or emergency)
-app.post('/api/register/direct', async (req, res) => {
-    try {
-        const { studentId, courseId } = req.body;
-        if (!studentId || !courseId) {
-            return res.status(400).json({ error: 'studentId and courseId are required' });
-        }
-        const result = await fallback.passThroughRegister(studentId, courseId);
-        res.status(result.status).json(result.data || { error: result.error });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 7. Config Update Endpoint (called by Capacity Advisor)
-app.put(['/api/config/admission-rate', '/api/queue/config'], (req, res) => {
-    try {
-        const { rate, batchSize } = req.body;
-        const newSize = batchSize || rate;
-        if (!newSize || newSize < 1) {
-            return res.status(400).json({ error: 'batchSize / rate must be >= 1' });
-
         }
 
         // Check token first (if already admitted)
-        const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
+        const tokenData = token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
         if (tokenData) {
             return res.json({
                 ticketId,
@@ -398,7 +355,7 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'ticketId is required for registration' });
         }
 
-        const tokenData = await token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
+        const tokenData = token.verifyToken ? await token.verifyToken(ticketId) : await token.verify(ticketId);
         if (!tokenData || tokenData.status !== config.TOKEN_STATUS.ACTIVE) {
             return res.status(403).json({
                 error: 'Access denied: Valid ACTIVE session token required',
@@ -458,7 +415,7 @@ app.post('/api/register/direct', async (req, res) => {
 });
 
 // 7. Config Update Endpoint (called by Capacity Advisor)
-app.put('/api/config/admission-rate', (req, res) => {
+app.put(['/api/config/admission-rate', '/api/queue/config'], (req, res) => {
     try {
         const { rate, batchSize } = req.body;
         const newSize = batchSize || rate;
@@ -513,7 +470,6 @@ app.post('/api/queue/reset', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 // 8. Queue Stats (for Dashboard monitoring)
 app.get('/api/queue/stats', async (req, res) => {
