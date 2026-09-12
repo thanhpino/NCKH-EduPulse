@@ -2,6 +2,7 @@
 -- Capacity Advisor Database Schema (edupulse_advisor)
 -- ==============================================================================
 
+DROP TABLE IF EXISTS advisor_decisions;
 CREATE TABLE IF NOT EXISTS advisor_decisions (
     id               SERIAL PRIMARY KEY,
     timestamp        TIMESTAMPTZ DEFAULT NOW(),
