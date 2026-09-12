@@ -32,6 +32,14 @@ async function initDB(retries = config.DB_MAX_RETRIES, delayMs = config.DB_RETRY
                 console.warn(`⚠️ [DB] Schema file not found at ${SCHEMA_PATH}. Skipping schema execution.`);
             }
 
+            // Ensure missing columns are added to existing database tables
+            await pool.query(`
+                ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS instant_gradient DOUBLE PRECISION;
+                ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS trend_slope DOUBLE PRECISION;
+                ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS old_batch_size INTEGER;
+                ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS new_batch_size INTEGER;
+            `);
+
             isConnected = true;
             console.log('✅ [DB] Connected to PostgreSQL (postgres-advisor) & verified schema from schema.sql.');
             return pool;

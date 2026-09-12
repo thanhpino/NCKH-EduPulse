@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS advisor_decisions (
     reason           TEXT
 );
 
+-- Ensure all columns exist for auto-migration if table was created in an earlier build
+ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS instant_gradient DOUBLE PRECISION;
+ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS trend_slope DOUBLE PRECISION;
+ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS old_batch_size INTEGER;
+ALTER TABLE advisor_decisions ADD COLUMN IF NOT EXISTS new_batch_size INTEGER;
+
 -- Index on timestamp for performant time-series and recent decision lookups
 CREATE INDEX IF NOT EXISTS idx_advisor_decisions_timestamp 
 ON advisor_decisions (timestamp DESC);
