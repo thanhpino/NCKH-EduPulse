@@ -10,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3003;
 const TIMESCALE_URL = process.env.TIMESCALE_URL || 'postgres://probe:probe_pass@localhost:5432/edupulse_metrics';
 const REGISTRY_SERVICE_URL = process.env.REGISTRY_SERVICE_URL || 'http://localhost:3001';
+const ALERT_SERVICE_URL = process.env.ALERT_SERVICE_URL || 'http://localhost:3005';
 
 app.use(cors());
 app.use(express.json());
@@ -36,8 +37,12 @@ const MAX_BUFFER_SIZE = 500;
 let isDbConnected = false;
 let isHypertableSupported = true;
 
+// Consecutive Failure Tracking per Target
+const consecutiveFailuresMap = new Map();
+const FAILURE_THRESHOLD_FOR_ALERT = 3;
+
 // ============================================
-// Init TimescaleDB with Retry & Fallback
+// Module 2: Init TimescaleDB & Retention Policy
 // ============================================
 async function initDB(retries = 10, delay = 2000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -53,15 +58,27 @@ async function initDB(retries = 10, delay = 2000) {
                     latency_ms  DOUBLE PRECISION,
                     status_code INTEGER,
                     is_error    BOOLEAN DEFAULT FALSE,
+                    error_type  TEXT,
                     error_msg   TEXT
                 );
             `);
 
-            // Create hypertable (TimescaleDB)
+            // Ensure error_type column exists if table was previously created
+            await pool.query(`ALTER TABLE metrics ADD COLUMN IF NOT EXISTS error_type TEXT;`);
+
+            // Create hypertable & Retention Policy (TimescaleDB)
             try {
                 await pool.query(`SELECT create_hypertable('metrics', 'time', if_not_exists => TRUE);`);
                 console.log('📊 TimescaleDB hypertable verified/created');
                 isHypertableSupported = true;
+
+                // Add 1-day retention policy to keep DB lightweight and queries ultra-fast
+                try {
+                    await pool.query(`SELECT add_retention_policy('metrics', INTERVAL '1 day', if_not_exists => TRUE);`);
+                    console.log('🧹 TimescaleDB retention policy added (1 day automatic cleanup)');
+                } catch (retentionErr) {
+                    // Retention policy might already exist or not supported
+                }
             } catch (err) {
                 console.log('ℹ️ TimescaleDB hypertable not available, falling back to standard Postgres indexing');
                 isHypertableSupported = false;
@@ -96,8 +113,8 @@ async function flushMetricsBuffer() {
     for (const item of items) {
         try {
             await pool.query(
-                'INSERT INTO metrics (time, target_id, target_url, latency_ms, status_code, is_error, error_msg) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                [item.time, item.target_id, item.target_url, item.latency_ms, item.status_code, item.is_error, item.error_msg]
+                'INSERT INTO metrics (time, target_id, target_url, latency_ms, status_code, is_error, error_type, error_msg) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                [item.time, item.target_id, item.target_url, item.latency_ms, item.status_code, item.is_error, item.error_type, item.error_msg]
             );
         } catch (e) {
             console.error('Failed to flush item to DB:', e.message);
@@ -106,13 +123,13 @@ async function flushMetricsBuffer() {
 }
 
 // Save metric to DB or Buffer
-async function recordMetric({ target_id, target_url, latency_ms, status_code, is_error, error_msg = null }) {
+async function recordMetric({ target_id, target_url, latency_ms, status_code, is_error, error_type = null, error_msg = null }) {
     const time = new Date();
     if (isDbConnected) {
         try {
             await pool.query(
-                'INSERT INTO metrics (time, target_id, target_url, latency_ms, status_code, is_error, error_msg) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                [time, target_id, target_url, latency_ms, status_code, is_error, error_msg]
+                'INSERT INTO metrics (time, target_id, target_url, latency_ms, status_code, is_error, error_type, error_msg) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                [time, target_id, target_url, latency_ms, status_code, is_error, error_type, error_msg]
             );
             return;
         } catch (err) {
@@ -125,11 +142,11 @@ async function recordMetric({ target_id, target_url, latency_ms, status_code, is
     if (metricsBuffer.length >= MAX_BUFFER_SIZE) {
         metricsBuffer.shift(); // Drop oldest
     }
-    metricsBuffer.push({ time, target_id, target_url, latency_ms, status_code, is_error, error_msg });
+    metricsBuffer.push({ time, target_id, target_url, latency_ms, status_code, is_error, error_type, error_msg });
 }
 
 // ============================================
-// Targets Management & Default Seeding
+// Targets Management & Automatic Discovery
 // ============================================
 let targets = [
     {
@@ -163,7 +180,7 @@ async function discoverTargets() {
             discovered.forEach((d) => {
                 if (!targets.some((t) => t.id === d.id)) {
                     targets.push(d);
-                    console.log(`🔍 Discovered target from Registry: ${d.id} (${d.url})`);
+                    console.log(`🔍 Discovered new target from Registry: ${d.id} (${d.url})`);
                 }
             });
         }
@@ -172,8 +189,45 @@ async function discoverTargets() {
     }
 }
 
+// Start periodic Service Discovery (every 30 seconds)
+function startDiscoveryLoop() {
+    setInterval(discoverTargets, 30000);
+}
+
+// Helper: Classify Error Taxonomy
+function classifyError(err) {
+    if (!err) return null;
+    const code = err.code;
+    const status = err.response?.status;
+
+    if (code === 'ECONNREFUSED') return 'CONNECTION_REFUSED';
+    if (code === 'ETIMEDOUT' || code === 'ECONNABORTED') return 'TIMEOUT';
+    if (code === 'ENOTFOUND') return 'DNS_LOOKUP_FAILED';
+    if (status >= 500) return `HTTP_${status}_SERVER_ERROR`;
+    if (status >= 400) return `HTTP_${status}_CLIENT_ERROR`;
+    return 'UNKNOWN_ERROR';
+}
+
+// Trigger alert to Alert Service when target fails consecutively
+async function triggerAlert(target, consecutiveFailures, errorType, errorMsg) {
+    try {
+        await axiosClient.post(`${ALERT_SERVICE_URL}/api/alerts`, {
+            serviceId: target.id,
+            targetUrl: target.url,
+            severity: 'CRITICAL',
+            consecutiveFailures,
+            errorType,
+            errorMsg,
+            timestamp: new Date().toISOString(),
+        });
+        console.warn(`🚨 Alert dispatched to Alert Service for target ${target.id} (${consecutiveFailures} failures)`);
+    } catch (err) {
+        // Alert service not ready or offline
+    }
+}
+
 // ============================================
-// Probe Function (Fault Tolerant & Concurrency)
+// Module 1: Telemetry Core & Multi-Metric Probing
 // ============================================
 async function probeTarget(target) {
     const start = Date.now();
@@ -185,19 +239,29 @@ async function probeTarget(target) {
         const response = await axiosClient.get(probeUrl);
         const latency = Date.now() - start;
 
+        // Reset failure counter on success
+        consecutiveFailuresMap.set(target.id, 0);
+
         await recordMetric({
             target_id: target.id,
             target_url: target.url,
             latency_ms: latency,
             status_code: response.status,
             is_error: false,
+            error_type: null,
+            error_msg: null,
         });
 
         return { id: target.id, latency, statusCode: response.status, error: null };
     } catch (err) {
         const latency = Date.now() - start;
         const statusCode = err.response?.status || 0;
+        const errorType = classifyError(err);
         const errorMsg = err.message || 'Connection refused or timeout';
+
+        // Increment consecutive failure counter
+        const currentFailures = (consecutiveFailuresMap.get(target.id) || 0) + 1;
+        consecutiveFailuresMap.set(target.id, currentFailures);
 
         await recordMetric({
             target_id: target.id,
@@ -205,20 +269,26 @@ async function probeTarget(target) {
             latency_ms: latency,
             status_code: statusCode,
             is_error: true,
+            error_type: errorType,
             error_msg: errorMsg,
         });
 
-        return { id: target.id, latency, statusCode, error: errorMsg };
+        // Trigger Alert when consecutive failure threshold reached
+        if (currentFailures >= FAILURE_THRESHOLD_FOR_ALERT) {
+            triggerAlert(target, currentFailures, errorType, errorMsg);
+        }
+
+        return { id: target.id, latency, statusCode, errorType, error: errorMsg, consecutiveFailures: currentFailures };
     }
 }
 
-// Single probe tick — runs all targets in parallel
+// Single probe cycle — runs all targets concurrently
 async function runProbeCycle() {
     const results = await Promise.allSettled(targets.map(probeTarget));
     const summary = results.map((r) => {
         if (r.status === 'fulfilled') {
             const val = r.value;
-            return `${val.id}: ${val.latency}ms [${val.error ? '❌ ' + val.error : '✅ OK'}]`;
+            return `${val.id}: ${val.latency}ms [${val.error ? `❌ ${val.errorType}` : '✅ OK'}]`;
         }
         return `Target failed`;
     });
@@ -237,7 +307,6 @@ function startProbing(intervalMs = currentIntervalMs) {
     currentIntervalMs = intervalMs;
     console.log(`⚙️ Probing loop running every ${currentIntervalMs}ms`);
 
-    // Initial probe cycle right away
     runProbeCycle();
 
     probeIntervalTimer = setInterval(() => {
@@ -264,7 +333,12 @@ app.get('/health', (req, res) => {
 
 // List monitored targets
 app.get('/api/targets', (req, res) => {
-    res.json({ targets, total: targets.length });
+    const targetStatus = targets.map((t) => ({
+        ...t,
+        consecutiveFailures: consecutiveFailuresMap.get(t.id) || 0,
+        status: (consecutiveFailuresMap.get(t.id) || 0) >= FAILURE_THRESHOLD_FOR_ALERT ? 'CRITICAL' : 'UP',
+    }));
+    res.json({ targets: targetStatus, total: targets.length });
 });
 
 // Add a new probe target
@@ -274,7 +348,6 @@ app.post('/api/probe/targets', (req, res) => {
         return res.status(400).json({ error: 'Missing required fields: id, url' });
     }
 
-    // Replace or add
     const idx = targets.findIndex((t) => t.id === id);
     if (idx >= 0) {
         targets[idx] = { id, url, healthEndpoint };
@@ -290,6 +363,7 @@ app.post('/api/probe/targets', (req, res) => {
 app.delete('/api/probe/targets/:id', (req, res) => {
     const { id } = req.params;
     targets = targets.filter((t) => t.id !== id);
+    consecutiveFailuresMap.delete(id);
     res.json({ message: `Target ${id} removed`, targets });
 });
 
@@ -303,7 +377,7 @@ app.put('/api/probe/config', (req, res) => {
     res.status(400).json({ error: 'Invalid intervalMs (must be number >= 500)' });
 });
 
-// Get recent raw metrics
+// Get recent raw metrics (includes error_type taxonomy)
 app.get('/api/metrics', async (req, res) => {
     const { target_id, limit = 100 } = req.query;
     if (isDbConnected) {
@@ -320,7 +394,6 @@ app.get('/api/metrics', async (req, res) => {
             console.error('Query error:', err.message);
         }
     }
-    // Fallback to in-memory buffer
     let filtered = [...metricsBuffer].reverse();
     if (target_id) filtered = filtered.filter((m) => m.target_id === target_id);
     res.json(filtered.slice(0, limit));
@@ -374,11 +447,10 @@ app.get('/api/metrics/aggregate', async (req, res) => {
         }
     }
 
-    // In-memory aggregate fallback
     res.json([]);
 });
 
-// Get real-time summary status per target (Green/Yellow/Red indicators)
+// Get real-time summary status per target (HEALTHY/WARNING/CRITICAL)
 app.get('/api/metrics/summary', async (req, res) => {
     if (isDbConnected) {
         try {
@@ -396,10 +468,14 @@ app.get('/api/metrics/summary', async (req, res) => {
             `;
             const result = await pool.query(query);
             const summary = result.rows.map((row) => {
+                const failures = consecutiveFailuresMap.get(row.target_id) || 0;
                 let status = 'HEALTHY';
-                if (row.error_rate > 0.2 || row.avg_latency > 2000) status = 'CRITICAL';
-                else if (row.error_rate > 0.05 || row.avg_latency > 500) status = 'WARNING';
-                return { ...row, status };
+                if (failures >= FAILURE_THRESHOLD_FOR_ALERT || row.error_rate > 0.2 || row.avg_latency > 2000) {
+                    status = 'CRITICAL';
+                } else if (row.error_rate > 0.05 || row.avg_latency > 500) {
+                    status = 'WARNING';
+                }
+                return { ...row, consecutiveFailures: failures, status };
             });
             return res.json(summary);
         } catch (err) {
@@ -409,7 +485,7 @@ app.get('/api/metrics/summary', async (req, res) => {
     res.json([]);
 });
 
-// Trigger an immediate manual probe cycle
+// Trigger manual probe cycle
 app.post('/api/probe/now', async (req, res) => {
     await runProbeCycle();
     res.json({ message: 'Manual probe cycle triggered' });
@@ -421,6 +497,7 @@ app.post('/api/probe/now', async (req, res) => {
 initDB()
     .then(() => {
         discoverTargets();
+        startDiscoveryLoop();
         startProbing();
         app.listen(PORT, () => {
             console.log(`🔍 Probe Engine running on port ${PORT}`);
