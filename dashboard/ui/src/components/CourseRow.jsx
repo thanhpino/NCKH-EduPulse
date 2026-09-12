@@ -150,6 +150,7 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                             onClick={() => {
                                 if (!alreadyRegistered) {
                                     handleGroupChange(g.group);
+                                    if (!isSelected) onToggle();
                                 }
                             }}
                             className={`border-b text-xs transition-all cursor-pointer ${isThisGroupSelected

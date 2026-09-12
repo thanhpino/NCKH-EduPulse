@@ -13,15 +13,15 @@ const registerSuccessCounter = new Counter('register_success');
 
 export const options = {
     scenarios: {
-        // Kịch bản: Spike 1000 Virtual Users trong 3 giây trên tất cả các môn học mở lớp
+        // Kịch bản: Spike 1000 Virtual Users — ramp-up dần trong 10 giây, giữ 20 giây
         concurrency_spike: {
             executor: 'ramping-vus',
             startVUs: 10,
             stages: [
-                { duration: '3s', target: 1000 }, // Ramp-up lên 1000 VUs trong 3 giây
-                { duration: '5s', target: 1000 }, // Giữ 1000 VUs trong 5 giây
+                { duration: '10s', target: 1000 }, // Ramp-up dần lên 1000 VUs trong 10 giây
+                { duration: '20s', target: 1000 }, // Giữ 1000 VUs ổn định trong 20 giây
             ],
-            gracefulRampDown: '1s',
+            gracefulRampDown: '3s',
         },
     },
     thresholds: {
