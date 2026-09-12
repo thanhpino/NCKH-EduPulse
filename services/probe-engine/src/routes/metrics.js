@@ -4,8 +4,8 @@ const { pool, isDbConnected, isHypertableSupported, getMetricsBuffer } = require
 const { targets, consecutiveFailuresMap, FAILURE_ALERT_THRESHOLD, getCurrentInterval } = require('../services/prober');
 const { addSseClient, getActiveClientCount } = require('../services/stream');
 
-// GET /health — Service health check
-router.get('/health', (req, res) => {
+// GET /health & GET /api/health — Service health check
+router.get(['/health', '/api/health'], (req, res) => {
     res.json({
         status: 'ok',
         service: 'probe-engine',
