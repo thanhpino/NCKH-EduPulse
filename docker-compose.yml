@@ -1,6 +1,4 @@
-# =========================================
-# EduPulse — Docker Compose (Development)
-# =========================================
+# EduPulse — Docker Compose
 
 services:
   # ---- Databases ----
@@ -110,8 +108,12 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3002
       - REDIS_URL=redis://redis-gateway:6379
-      - ADMISSION_RATE=${GATEWAY_ADMISSION_RATE:-50}
-      - QUEUE_TTL=${GATEWAY_QUEUE_TTL:-300}
+      - MOCK_BACKEND_URL=http://mock-backend:3010
+      - BATCH_SIZE=${GATEWAY_BATCH_SIZE:-50}
+      - PENDING_ENTRY_TTL=${GATEWAY_PENDING_ENTRY_TTL:-180}
+      - ACTIVE_TTL=${GATEWAY_ACTIVE_TTL:-180}
+      - HEARTBEAT_INTERVAL=${GATEWAY_HEARTBEAT_INTERVAL:-20}
+      - ADMISSION_INTERVAL=${GATEWAY_ADMISSION_INTERVAL:-2000}
     depends_on:
       - redis-gateway
       - mock-backend
@@ -130,8 +132,18 @@ services:
       - PORT=3003
       - TIMESCALE_URL=postgres://probe:probe_pass@timescaledb:5432/edupulse_metrics
       - PROBE_INTERVAL_MS=${PROBE_INTERVAL_MS:-5000}
+      - GATEWAY_URL=http://traffic-gateway:3002
+      - MOCK_BACKEND_URL=http://mock-backend:3010
+      - REGISTRY_SERVICE_URL=http://registry-service:3001
+      - ALERT_SERVICE_URL=http://alert-service:3005
+      - REDIS_URL=redis://redis-gateway:6379
     depends_on:
       - timescaledb
+      - redis-gateway
+      - traffic-gateway
+      - mock-backend
+      - registry-service
+      - alert-service
     networks:
       - edupulse-net
     restart: unless-stopped
@@ -146,9 +158,11 @@ services:
       - PORT=3004
       - DATABASE_URL=postgres://advisor:advisor_pass@postgres-advisor:5432/edupulse_advisor
       - GATEWAY_URL=http://traffic-gateway:3002
+      - PROBE_ENGINE_URL=http://probe-engine:3003
     depends_on:
       - postgres-advisor
       - traffic-gateway
+      - probe-engine
     networks:
       - edupulse-net
     restart: unless-stopped
