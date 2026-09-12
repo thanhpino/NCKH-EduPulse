@@ -316,7 +316,7 @@ export default function Register() {
             <nav className="bg-[#005B7F] text-white px-6 py-2.5 flex items-center justify-between shadow-md text-xs font-medium">
                 <div className="flex items-center space-x-6">
                     <span className="font-bold text-sm tracking-wide flex items-center gap-2">
-                        <span className="bg-white text-[#005B7F] px-1.5 py-0.5 rounded font-black text-xs">PORTAL</span>
+                        <span className="bg-white text-[#005B7F] px-1.5 py-0.5 rounded font-black text-xs">EDU PULSE</span>
                         ĐĂNG KÝ MÔN HỌC
                     </span>
                     <div className="flex space-x-1">
@@ -334,7 +334,6 @@ export default function Register() {
                             className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all cursor-pointer flex items-center space-x-1"
                         >
                             <span>Kế hoạch học tập</span>
-                            <span className="bg-amber-400 text-blue-950 text-[9px] px-1 rounded font-bold">Mới</span>
                         </button>
                         <button
                             onClick={() => setIsInfoModalOpen(true)}
