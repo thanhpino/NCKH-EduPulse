@@ -9,12 +9,10 @@ const COURSE_ID = process.argv[2] || 'CS501';
 const DRAIN_INTERVAL_MS = parseInt(process.env.DRAIN_INTERVAL_MS || '3000');
 
 async function setupWaitingRoom() {
-    console.log(`\n======================================================`);
     console.log(`🚀 EduPulse Traffic Gateway — Virtual Waiting Room Setup`);
     console.log(`Target Course: ${COURSE_ID}`);
     console.log(`Gateway URL: ${GATEWAY_URL}`);
     console.log(`Auto-Drain Speed: 1 active student finished every ${DRAIN_INTERVAL_MS / 1000}s`);
-    console.log(`======================================================\n`);
 
     try {
         // First reset queue state if needed
@@ -55,13 +53,10 @@ async function setupWaitingRoom() {
             console.log(`   - Student ${studentId}: Position #${joinData.position || 'N/A'}, status: ${joinData.status}`);
         }
 
-        console.log('\n======================================================');
         console.log(`🎉 SETUP COMPLETE!`);
         console.log(`Now go to UI (http://localhost:3000) and click 'Đăng ký' for ${COURSE_ID}.`);
         console.log(`You will see: 🟡 Hàng đợi #4 -> #3 -> #2 -> #1 -> 🟢 Đã đăng ký!`);
         console.log(`Starting real-time queue drain loop (1 active student registers every ${DRAIN_INTERVAL_MS / 1000}s)...`);
-        console.log(`======================================================\n`);
-
         let drainIndex = 0;
         const interval = setInterval(async () => {
             if (drainIndex >= activeStudents.length) {
