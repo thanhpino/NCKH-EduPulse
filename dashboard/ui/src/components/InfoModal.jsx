@@ -2,8 +2,11 @@ import React from 'react';
 
 /**
  * InfoModal — Modal thông tin phần mềm & liên hệ hỗ trợ EduPulse
+ * Supports English/Vietnamese localization.
  */
-export default function InfoModal({ isOpen, onClose }) {
+export default function InfoModal({ isOpen, onClose, lang }) {
+    const currentLang = lang || (typeof window !== 'undefined' ? localStorage.getItem('appLang') || 'vi' : 'vi');
+
     if (!isOpen) return null;
 
     return (
@@ -13,7 +16,9 @@ export default function InfoModal({ isOpen, onClose }) {
                 <div className="bg-[#005B7F] text-white px-5 py-3 flex items-center justify-between font-bold">
                     <div className="flex items-center space-x-2 text-sm">
                         <span className="bg-amber-400 text-blue-950 text-[10px] px-1.5 py-0.5 rounded font-black">INFO</span>
-                        <span>THÔNG TIN PHẦN MỀM & LIÊN HỆ HỖ TRỢ</span>
+                        <span>
+                            {currentLang === 'en' ? 'SOFTWARE INFORMATION & SUPPORT CONTACT' : 'THÔNG TIN PHẦN MỀM & LIÊN HỆ HỖ TRỢ'}
+                        </span>
                     </div>
                     <button
                         onClick={onClose}
@@ -29,14 +34,17 @@ export default function InfoModal({ isOpen, onClose }) {
                     <div className="bg-sky-50 border-l-4 border-[#005B7F] p-3 rounded text-sky-900">
                         <h4 className="font-bold text-sm text-[#005B7F] mb-1">EduPulse Traffic Gateway System</h4>
                         <p className="leading-relaxed">
-                            Hệ thống Cổng điều tiết tải Đăng ký Tín chỉ cho các bạn sinh viên</p>
+                            {currentLang === 'en'
+                                ? 'Student Course Registration Load Control & Traffic Gateway System'
+                                : 'Hệ thống Cổng điều tiết tải Đăng ký Tín chỉ cho các bạn sinh viên'}
+                        </p>
                     </div>
 
                     {/* Team Members */}
                     <div>
                         <h5 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full bg-[#8C0000]"></span>
-                            Đội Ngũ Phát Triển Dự Án (2 Members)
+                            {currentLang === 'en' ? 'Development Team (2 Members)' : 'Đội Ngũ Phát Triển Dự Án (2 Members)'}
                         </h5>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-gray-50 border border-gray-200 p-3 rounded flex items-center space-x-3">
@@ -65,21 +73,23 @@ export default function InfoModal({ isOpen, onClose }) {
                     <div className="border-t border-gray-200 pt-3 space-y-2">
                         <h5 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                            Liên Hệ & Hỗ Trợ Kỹ Thuật Đợt Đăng Ký
+                            {currentLang === 'en' ? 'Technical Support & Hotline' : 'Liên Hệ & Hỗ Trợ Kỹ Thuật Đợt Đăng Ký'}
                         </h5>
 
                         <div className="bg-amber-50/60 border border-amber-200 p-2.5 rounded text-amber-900 space-y-1 font-mono text-[11px]">
                             <div className="flex justify-between">
-                                <span className="text-gray-600">Hotline Kỹ thuật:</span>
+                                <span className="text-gray-600">{currentLang === 'en' ? 'Tech Hotline:' : 'Hotline Kỹ thuật:'}</span>
                                 <span className="font-bold text-blue-900">0932013424 (TMT)</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-600">Email Hỗ trợ:</span>
+                                <span className="text-gray-600">{currentLang === 'en' ? 'Support Email:' : 'Email Hỗ trợ:'}</span>
                                 <span className="font-bold text-blue-900">tmt@edupulse.edu.vn</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-600">Địa điểm hỗ trợ trực tiếp:</span>
-                                <span className="font-bold text-gray-800">Phòng C.001 (Tòa C, CS Tân Phong)</span>
+                                <span className="text-gray-600">{currentLang === 'en' ? 'In-Person Location:' : 'Địa điểm hỗ trợ trực tiếp:'}</span>
+                                <span className="font-bold text-gray-800">
+                                    {currentLang === 'en' ? 'Room C.001 (Building C, Tan Phong Campus)' : 'Phòng C.001 (Tòa C, CS Tân Phong)'}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -91,7 +101,7 @@ export default function InfoModal({ isOpen, onClose }) {
                         onClick={onClose}
                         className="px-4 py-1.5 bg-gray-700 hover:bg-gray-800 text-white font-bold text-xs rounded shadow transition-all cursor-pointer"
                     >
-                        Đóng
+                        {currentLang === 'en' ? 'Close' : 'Đóng'}
                     </button>
                 </div>
             </div>

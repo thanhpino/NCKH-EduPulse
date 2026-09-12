@@ -6,8 +6,92 @@ import SuccessModal from '../components/SuccessModal';
 import InfoModal from '../components/InfoModal';
 import StudyPlanModal from '../components/StudyPlanModal';
 import CourseFullModal from '../components/CourseFullModal';
+import { translateCourseName, translateInstructor } from '../utils/i18n';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:3002';
+
+const TRANSLATIONS = {
+    vi: {
+        switchLangTooltip: 'Switch to English',
+        portalBrand: 'ĐĂNG KÝ MÔN HỌC',
+        tabRegister: 'Đăng ký môn học theo KHHT',
+        tabPlan: 'Kế hoạch học tập',
+        tabInfo: 'Thông tin',
+        mssvLabel: 'MSSV:',
+        logout: 'Đăng xuất',
+        termLabel: 'Học kỳ:',
+        termValue: 'Học kỳ 2 - Năm học 2026-2027',
+        regRoundLabel: 'Đợt đăng ký:',
+        regRoundValue: 'Đợt 1 - Đăng ký chính thức',
+        registeredCount: 'Đã đăng ký:',
+        selectedCount: 'Đang chọn:',
+        coursesUnit: 'môn',
+        tcUnit: 'TC',
+        btnRegister: 'Đăng ký',
+        btnRegistering: 'Đang gửi yêu cầu...',
+        btnUnregister: 'Hủy các môn học đã đăng ký',
+        catalogTitle: 'DANH SÁCH MÔN HỌC MỞ LỚP',
+        showing: 'Hiển thị:',
+        colSTT: 'CHỌN',
+        colCourseId: 'MÃ MH',
+        colCourseName: 'MÔN HỌC & CHỌN NHÓM',
+        colCredits: 'SỐ TC',
+        colGroup: 'SL/TỐI ĐA',
+        colSchedule: 'LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN',
+        colInstructor: 'TÊN GIẢNG VIÊN',
+        colStatus: 'TRẠNG THÁI',
+        registeredSidebarTitle: '📋 MÔN HỌC ĐÃ ĐĂNG KÝ',
+        noRegistered: 'Chưa đăng ký môn nào',
+        noRegisteredHint: 'Chọn môn từ bảng bên trái và nhấn "Đăng ký"',
+        loadingCourses: 'Đang tải danh sách môn học...',
+        loadError: 'Không thể tải danh sách môn học từ hệ thống.',
+        totalCreditsRegistered: 'Tổng số tín chỉ đã ĐK:',
+        checkPlanHint: 'Đối chiếu với Kế hoạch học tập để đảm bảo đủ tín chỉ',
+        selectedCoursesTitle: 'Các môn đang chọn',
+        totalSelectedCredits: 'Tổng số tín chỉ:',
+        registerNow: 'Đăng ký ngay',
+    },
+    en: {
+        switchLangTooltip: 'Chuyển sang Tiếng Việt',
+        portalBrand: 'COURSE REGISTRATION',
+        tabRegister: 'Course Registration by Study Plan',
+        tabPlan: 'Study Plan',
+        tabInfo: 'Information',
+        mssvLabel: 'Student ID:',
+        logout: 'Log out',
+        termLabel: 'Semester:',
+        termValue: 'Semester 2 - Academic Year 2026-2027',
+        regRoundLabel: 'Registration Phase:',
+        regRoundValue: 'Phase 1 - Official Registration',
+        registeredCount: 'Registered:',
+        selectedCount: 'Selected:',
+        coursesUnit: 'courses',
+        tcUnit: 'Credits',
+        btnRegister: 'Register',
+        btnRegistering: 'Submitting request...',
+        btnUnregister: 'Drop registered courses',
+        catalogTitle: 'AVAILABLE COURSE CATALOG',
+        showing: 'Showing:',
+        colSTT: 'SELECT',
+        colCourseId: 'COURSE ID',
+        colCourseName: 'COURSE & GROUP SELECT',
+        colCredits: 'CREDITS',
+        colGroup: 'CAPACITY',
+        colSchedule: 'SCHEDULE: PERIOD - DAY - ROOM - WEEK',
+        colInstructor: 'INSTRUCTOR NAME',
+        colStatus: 'STATUS',
+        registeredSidebarTitle: '📋 REGISTERED COURSES',
+        noRegistered: 'No courses registered yet',
+        noRegisteredHint: 'Select courses from the left table and click "Register"',
+        loadingCourses: 'Loading available courses...',
+        loadError: 'Failed to load course catalog from system.',
+        totalCreditsRegistered: 'Total Registered Credits:',
+        checkPlanHint: 'Cross-check with Study Plan to ensure sufficient credits',
+        selectedCoursesTitle: 'Selected Courses',
+        totalSelectedCredits: 'Total Credits:',
+        registerNow: 'Register Now',
+    }
+};
 
 // Mock additional metadata for TDTU course schedule & details (with ---123456789012345--- format for Tuần)
 const MOCK_METADATA = {
@@ -22,6 +106,17 @@ export default function Register() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const mssv = searchParams.get('mssv') || 'B2012345';
+
+    const [lang, setLang] = useState(() => localStorage.getItem('appLang') || 'vi');
+    const t = TRANSLATIONS[lang];
+
+    const toggleLanguage = () => {
+        setLang((prev) => {
+            const next = prev === 'vi' ? 'en' : 'vi';
+            localStorage.setItem('appLang', next);
+            return next;
+        });
+    };
 
     const [courses, setCourses] = useState([]);
     const [registrations, setRegistrations] = useState([]);
@@ -317,7 +412,7 @@ export default function Register() {
                 <div className="flex items-center space-x-6">
                     <span className="font-bold text-sm tracking-wide flex items-center gap-2">
                         <span className="bg-white text-[#005B7F] px-1.5 py-0.5 rounded font-black text-xs">EDU PULSE</span>
-                        ĐĂNG KÝ MÔN HỌC
+                        {t.portalBrand}
                     </span>
                     <div className="flex space-x-1">
                         <button
@@ -327,38 +422,72 @@ export default function Register() {
                                 : 'hover:bg-[#00425C]/60 text-gray-200'
                                 }`}
                         >
-                            Đăng ký môn học theo KHHT
+                            {t.tabRegister}
                         </button>
                         <button
                             onClick={() => setIsPlanModalOpen(true)}
                             className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all cursor-pointer flex items-center space-x-1"
                         >
-                            <span>Kế hoạch học tập</span>
+                            <span>{t.tabPlan}</span>
                         </button>
                         <button
                             onClick={() => setIsInfoModalOpen(true)}
                             className="hover:bg-[#00425C]/60 px-3 py-1.5 rounded font-medium text-gray-200 transition-all cursor-pointer"
                         >
-                            Thông tin
+                            {t.tabInfo}
                         </button>
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
+                    {/* Flag Language Switcher (Left of MSSV) */}
+                    <button
+                        type="button"
+                        onClick={toggleLanguage}
+                        className="flex items-center justify-center p-1 rounded-md bg-[#00425C] hover:bg-[#003348] transition-all cursor-pointer border border-cyan-400/60 shadow-sm hover:scale-105 active:scale-95"
+                        title={t.switchLangTooltip}
+                        aria-label={t.switchLangTooltip}
+                    >
+                        {lang === 'vi' ? (
+                            /* UK Flag (switch to English) */
+                            <svg viewBox="0 0 60 30" className="w-7 h-4.5 rounded-xs shadow-xs border border-white/80 transition-transform">
+                                <clipPath id="uk-clip-nav">
+                                    <path d="M0 0 v30 h60 v-30 z" />
+                                </clipPath>
+                                <g clipPath="url(#uk-clip-nav)">
+                                    <path d="M0 0 v30 h60 v-30 z" fill="#012169" />
+                                    <path d="M0 0 L60 30 M60 0 L0 30" stroke="#fff" strokeWidth="6" />
+                                    <path d="M0 0 L60 30 M60 0 L0 30" stroke="#C8102E" strokeWidth="4" />
+                                    <path d="M30 0 v30 M0 15 h60" stroke="#fff" strokeWidth="10" />
+                                    <path d="M30 0 v30 M0 15 h60" stroke="#C8102E" strokeWidth="6" />
+                                </g>
+                            </svg>
+                        ) : (
+                            /* Vietnam Flag (switch to Vietnamese) */
+                            <svg viewBox="0 0 60 40" className="w-7 h-4.5 rounded-xs shadow-xs border border-white/80 transition-transform">
+                                <rect width="60" height="40" fill="#DA251D" />
+                                <polygon
+                                    points="30,8 33.7,19.4 45.7,19.4 36,26.4 39.7,37.8 30,30.8 20.3,37.8 24,26.4 14.3,19.4 26.3,19.4"
+                                    fill="#FFFF00"
+                                />
+                            </svg>
+                        )}
+                    </button>
+
                     {/* Student Info & Debug Trigger */}
                     <div
                         className="bg-[#00425C] px-3 py-1 rounded text-[11px] font-mono cursor-pointer select-none hover:bg-[#003348] border border-cyan-800 transition-all"
                         onClick={() => setClickCount((prev) => prev + 1)}
                         title="Triple-click to toggle test mode"
                     >
-                        MSSV: <span className="font-bold text-amber-300">{mssv}</span>
+                        {t.mssvLabel} <span className="font-bold text-amber-300">{mssv}</span>
                     </div>
 
                     <button
                         onClick={() => navigate('/login')}
-                        className="bg-red-700 hover:bg-red-800 px-2.5 py-1 rounded text-white font-medium text-[11px] transition-all"
+                        className="bg-red-700 hover:bg-red-800 px-2.5 py-1 rounded text-white font-medium text-[11px] transition-all cursor-pointer"
                     >
-                        Đăng xuất
+                        {t.logout}
                     </button>
                 </div>
             </nav>
@@ -374,7 +503,7 @@ export default function Register() {
                         {resetMsg && <span className="text-emerald-700 font-bold">{resetMsg}</span>}
                         <button
                             onClick={handleResetQueue}
-                            className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1 rounded shadow text-xs transition-all"
+                            className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1 rounded shadow text-xs transition-all cursor-pointer"
                         >
                             Reset Redis Queue State
                         </button>
@@ -388,22 +517,22 @@ export default function Register() {
                 <div className="bg-white p-4 rounded shadow-sm border border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
                     <div className="flex items-center space-x-4">
                         <div>
-                            <span className="text-gray-500 font-medium">Học kỳ: </span>
-                            <span className="font-bold text-[#8C0000]">Học kỳ 2 - Năm học 2026-2027</span>
+                            <span className="text-gray-500 font-medium">{t.termLabel} </span>
+                            <span className="font-bold text-[#8C0000]">{t.termValue}</span>
                         </div>
                         <div className="h-4 w-px bg-gray-300"></div>
                         <div>
-                            <span className="text-gray-500 font-medium">Đợt đăng ký: </span>
-                            <span className="font-semibold text-gray-800">Đợt 1 - Đăng ký chính thức</span>
+                            <span className="text-gray-500 font-medium">{t.regRoundLabel} </span>
+                            <span className="font-semibold text-gray-800">{t.regRoundValue}</span>
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-6 font-semibold">
                         <div className="text-blue-900">
-                            Đã đăng ký: <span className="text-blue-600 font-bold text-sm">{registeredCount}</span> môn
+                            {t.registeredCount} <span className="text-blue-600 font-bold text-sm">{registeredCount}</span> {t.coursesUnit}
                         </div>
                         <div className="text-amber-900">
-                            Đang chọn: <span className="text-amber-600 font-bold text-sm">{selectedCount}</span> môn ({totalSelectedCredits} TC)
+                            {t.selectedCount} <span className="text-amber-600 font-bold text-sm">{selectedCount}</span> {t.coursesUnit} ({totalSelectedCredits} {t.tcUnit})
                         </div>
                     </div>
                 </div>
@@ -425,7 +554,7 @@ export default function Register() {
                             : 'bg-linear-to-b from-sky-200 via-sky-300 to-sky-400 hover:from-sky-300 hover:to-sky-500 hover:shadow-md cursor-pointer active:scale-95'
                             }`}
                     >
-                        {loading ? 'Đang gửi yêu cầu...' : `Đăng ký (${selectedCount})`}
+                        {loading ? t.btnRegistering : `${t.btnRegister} (${selectedCount})`}
                     </button>
 
                     <button
@@ -436,7 +565,7 @@ export default function Register() {
                             : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300 hover:shadow-md cursor-pointer active:scale-95'
                             }`}
                     >
-                        Hủy các môn học đã đăng ký {registeredCount > 0 ? `(${registeredCount})` : ''}
+                        {t.btnUnregister} {registeredCount > 0 ? `(${registeredCount})` : ''}
                     </button>
                 </div>
 
@@ -445,9 +574,9 @@ export default function Register() {
                     {/* LEFT — Main Course Table */}
                     <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
                         <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
-                            <span>DANH SÁCH MÔN HỌC MỞ LỚP</span>
+                            <span>{t.catalogTitle}</span>
                             <span className="text-[11px] font-normal text-amber-200">
-                                Hiển thị: {courses.length} môn
+                                {t.showing} {courses.length} {t.coursesUnit}
                             </span>
                         </div>
 
@@ -455,21 +584,21 @@ export default function Register() {
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-[#8C0000] text-white font-bold text-[11px]">
                                     <tr>
-                                        <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
-                                        <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
-                                        <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC & CHỌN NHÓM</th>
-                                        <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
-                                        <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
-                                        <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
-                                        <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
-                                        <th className="p-2 w-36 text-center">TRẠNG THÁI</th>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-10">{t.colSTT}</th>
+                                        <th className="p-2 border-r border-[#A31A1A] w-20">{t.colCourseId}</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">{t.colCourseName}</th>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-14">{t.colCredits}</th>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-24">{t.colGroup}</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">{t.colSchedule}</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">{t.colInstructor}</th>
+                                        <th className="p-2 w-36 text-center">{t.colStatus}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {courses.length === 0 ? (
                                         <tr>
                                             <td colSpan={8} className="text-center py-8 text-gray-400">
-                                                Đang tải danh sách môn học...
+                                                {t.loadingCourses}
                                             </td>
                                         </tr>
                                     ) : (
@@ -484,6 +613,7 @@ export default function Register() {
                                                 rowIndex={idx}
                                                 onStatusChange={handleStatusChange}
                                                 onGroupChange={(cId, groupCode) => setSelectedGroups(prev => ({ ...prev, [cId]: groupCode }))}
+                                                lang={lang}
                                             />
                                         ))
                                     )}
@@ -498,10 +628,10 @@ export default function Register() {
                             {/* Header */}
                             <div className="bg-[#005B7F] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
                                 <span className="flex items-center gap-1.5">
-                                    📋 MÔN HỌC ĐÃ ĐĂNG KÝ
+                                    {t.registeredSidebarTitle}
                                 </span>
                                 <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                    {registeredCount} môn
+                                    {registeredCount} {t.coursesUnit}
                                 </span>
                             </div>
 
@@ -510,8 +640,8 @@ export default function Register() {
                                 {registeredCount === 0 ? (
                                     <div className="text-center py-8 space-y-2">
                                         <div className="text-3xl">📭</div>
-                                        <p className="text-gray-400 text-xs">Chưa đăng ký môn nào</p>
-                                        <p className="text-gray-300 text-[10px]">Chọn môn từ bảng bên trái và nhấn "Đăng ký"</p>
+                                        <p className="text-gray-400 text-xs">{t.noRegistered}</p>
+                                        <p className="text-gray-300 text-[10px]">{t.noRegisteredHint}</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
@@ -536,28 +666,28 @@ export default function Register() {
                                                                 </span>
                                                             </div>
                                                             <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">
-                                                                {courseInfo?.courseName || reg.courseId}
+                                                                {translateCourseName(reg.courseId, courseInfo?.courseName, lang)}
                                                             </p>
                                                         </div>
                                                         <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
-                                                            {courseInfo?.credits || 3} TC
+                                                            {courseInfo?.credits || 3} {t.tcUnit}
                                                         </span>
                                                     </div>
 
                                                     {/* Row 2: Group + Schedule + Instructor */}
                                                     <div className="flex items-center gap-1.5 text-[10px] text-gray-600">
                                                         <span className="bg-amber-100 text-amber-800 font-bold px-1 py-0.5 rounded border border-amber-200">
-                                                            N{groupCode}
+                                                            {lang === 'en' ? `G${groupCode}` : `N${groupCode}`}
                                                         </span>
                                                         <span className="truncate">
-                                                            {groupInfo?.instructor || courseInfo?.instructor || '---'}
+                                                            {translateInstructor(groupInfo?.instructor || courseInfo?.instructor || '---', lang)}
                                                         </span>
                                                     </div>
 
                                                     {/* Row 3: Status */}
                                                     <div className="flex items-center gap-1 text-[10px]">
                                                         <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full border border-emerald-300">
-                                                            🟢 Đã đăng ký thành công
+                                                            🟢 {lang === 'vi' ? 'Đã đăng ký thành công' : 'Registered successfully'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -570,16 +700,16 @@ export default function Register() {
                                 {registeredCount > 0 && (
                                     <div className="mt-3 pt-2.5 border-t border-emerald-200">
                                         <div className="flex justify-between items-center text-xs">
-                                            <span className="font-semibold text-gray-600">Tổng số tín chỉ đã ĐK:</span>
+                                            <span className="font-semibold text-gray-600">{t.totalCreditsRegistered}</span>
                                             <span className="font-bold text-emerald-700 text-sm font-mono">
                                                 {registrations.reduce((sum, r) => {
                                                     const c = courses.find((c) => c.courseId === r.courseId);
                                                     return sum + (c?.credits || 3);
-                                                }, 0)} TC
+                                                }, 0)} {t.tcUnit}
                                             </span>
                                         </div>
                                         <p className="text-[10px] text-gray-400 mt-1 italic">
-                                            Đối chiếu với Kế hoạch học tập để đảm bảo đủ tín chỉ
+                                            {t.checkPlanHint}
                                         </p>
                                     </div>
                                 )}
@@ -593,9 +723,9 @@ export default function Register() {
             {selectedCount > 0 && (
                 <div className="fixed bottom-0 right-6 z-50 bg-[#222222]/95 text-white w-72 p-3 rounded-t-md shadow-2xl border border-gray-700 backdrop-blur-sm transition-all animate-bounce-short">
                     <div className="flex items-center justify-between font-bold text-yellow-400 border-b border-gray-600 pb-1.5 mb-2 text-xs">
-                        <span>Các môn đang chọn</span>
+                        <span>{t.selectedCoursesTitle}</span>
                         <span className="text-[10px] bg-yellow-900/60 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-700">
-                            {selectedCount} môn
+                            {selectedCount} {t.coursesUnit}
                         </span>
                     </div>
 
@@ -604,14 +734,14 @@ export default function Register() {
                             <li key={c.courseId} className="flex justify-between items-center bg-gray-800/80 p-1.5 rounded border border-gray-700">
                                 <span className="font-mono text-amber-300 font-bold">{c.courseId}</span>
                                 <span className="truncate max-w-35 text-gray-200">{c.courseName}</span>
-                                <span className="text-[10px] text-gray-400 font-mono">{c.credits || 3} TC</span>
+                                <span className="text-[10px] text-gray-400 font-mono">{c.credits || 3} {t.tcUnit}</span>
                             </li>
                         ))}
                     </ul>
 
                     <div className="mt-3 pt-2 border-t border-gray-700 flex justify-between items-center text-xs font-bold text-gray-200">
-                        <span>Tổng số tín chỉ:</span>
-                        <span className="text-yellow-400 font-mono text-sm">{totalSelectedCredits} TC</span>
+                        <span>{t.totalSelectedCredits}</span>
+                        <span className="text-yellow-400 font-mono text-sm">{totalSelectedCredits} {t.tcUnit}</span>
                     </div>
 
                     <button
@@ -619,7 +749,7 @@ export default function Register() {
                         disabled={loading}
                         className="w-full mt-2 py-1.5 bg-linear-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-xs rounded shadow transition-all active:scale-95 cursor-pointer"
                     >
-                        {loading ? 'Đang gửi...' : 'Đăng ký ngay'}
+                        {loading ? t.btnRegistering : t.registerNow}
                     </button>
                 </div>
             )}
@@ -632,6 +762,7 @@ export default function Register() {
                 registeredCount={registeredCount}
                 registeredList={registeredList}
                 loading={loading}
+                lang={lang}
             />
 
             {/* Success Pop-up Modal for Unregistration */}
@@ -639,6 +770,7 @@ export default function Register() {
                 isOpen={isSuccessModalOpen}
                 onClose={() => setIsSuccessModalOpen(false)}
                 count={successCount}
+                lang={lang}
             />
 
             {/* Course Full Pop-up Modal */}
@@ -650,12 +782,14 @@ export default function Register() {
                 groups={courseFullInfo?.groups || []}
                 isCourseFullyFull={true}
                 onClose={() => setCourseFullInfo(null)}
+                lang={lang}
             />
 
             {/* Software Info & Team Developer Modal */}
             <InfoModal
                 isOpen={isInfoModalOpen}
                 onClose={() => setIsInfoModalOpen(false)}
+                lang={lang}
             />
 
             {/* Study Plan (Kế hoạch học tập) Modal */}
@@ -665,6 +799,7 @@ export default function Register() {
                 studentId={mssv}
                 courses={courses}
                 onProceedToRegister={() => setActiveTab('register')}
+                lang={lang}
             />
         </div>
     );

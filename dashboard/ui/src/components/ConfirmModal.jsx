@@ -1,7 +1,12 @@
 /**
  * ConfirmModal — Pop-up modal xác nhận hủy đăng ký môn học chuẩn UI TDTU
+ * Supports English/Vietnamese localization.
  */
-export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCount, registeredList = [], loading }) {
+import { translateCourseName } from '../utils/i18n';
+
+export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCount, registeredList = [], loading, lang }) {
+    const currentLang = lang || (typeof window !== 'undefined' ? localStorage.getItem('appLang') || 'vi' : 'vi');
+
     if (!isOpen) return null;
 
     return (
@@ -11,7 +16,9 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                 <div className="bg-[#8C0000] text-white px-5 py-3.5 flex items-center justify-between">
                     <div className="flex items-center space-x-2 font-bold text-sm">
                         <span className="text-amber-300 text-base">⚠️</span>
-                        <span>XÁC NHẬN HỦY ĐĂNG KÝ MÔN HỌC</span>
+                        <span>
+                            {currentLang === 'en' ? 'CONFIRM CANCELLATION OF REGISTERED COURSES' : 'XÁC NHẬN HỦY ĐĂNG KÝ MÔN HỌC'}
+                        </span>
                     </div>
                     <button
                         onClick={onClose}
@@ -24,17 +31,31 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                 {/* Modal Body */}
                 <div className="p-5 space-y-4 text-xs text-gray-700">
                     <p className="font-semibold text-gray-800 text-sm">
-                        Bạn có chắc chắn muốn hủy đăng ký <span className="text-red-700 font-bold">{registeredCount}</span> môn học đã được hệ thống ghi nhận?
+                        {currentLang === 'en' ? (
+                            <>
+                                Are you sure you want to cancel registration for <span className="text-red-700 font-bold">{registeredCount}</span> course(s) recorded by the system?
+                            </>
+                        ) : (
+                            <>
+                                Bạn có chắc chắn muốn hủy đăng ký <span className="text-red-700 font-bold">{registeredCount}</span> môn học đã được hệ thống ghi nhận?
+                            </>
+                        )}
                     </p>
 
                     {registeredList.length > 0 && (
                         <div className="bg-gray-50 p-3 rounded border border-gray-200 space-y-1.5 max-h-36 overflow-y-auto">
-                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Danh sách môn học sẽ bị hủy:</span>
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">
+                                {currentLang === 'en' ? 'List of courses to be cancelled:' : 'Danh sách môn học sẽ bị hủy:'}
+                            </span>
                             {registeredList.map((r) => (
                                 <div key={r.courseId} className="flex justify-between items-center bg-white p-2 rounded border border-gray-200 text-xs">
                                     <span className="font-mono font-bold text-red-900">{r.courseId}</span>
-                                    <span className="text-gray-600 truncate max-w-50">{r.courseName || r.courseId}</span>
-                                    <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-medium">Xác nhận hủy</span>
+                                    <span className="text-gray-600 truncate max-w-50">
+                                        {translateCourseName(r.courseId, r.courseName || r.courseId, currentLang)}
+                                    </span>
+                                    <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-medium">
+                                        {currentLang === 'en' ? 'Confirm cancel' : 'Xác nhận hủy'}
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -42,9 +63,13 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
 
                     <div className="bg-amber-50 border-l-4 border-amber-500 p-3 text-amber-900 rounded text-[11px] space-y-1">
                         <div className="font-bold flex items-center gap-1">
-                            <span>ℹ️ LƯU Ý QUAN TRỌNG:</span>
+                            <span>{currentLang === 'en' ? 'ℹ️ IMPORTANT NOTICE:' : 'ℹ️ LƯU Ý QUAN TRỌNG:'}</span>
                         </div>
-                        <p>Thao tác này sẽ xóa môn học sinh viên chôn và giải phóng slot môn học để nhường lại cho các sinh viên khác.</p>
+                        <p>
+                            {currentLang === 'en'
+                                ? 'This action will remove selected course registrations and release slots for other students.'
+                                : 'Thao tác này sẽ xóa môn học sinh viên chọn và giải phóng slot môn học để nhường lại cho các sinh viên khác.'}
+                        </p>
                     </div>
                 </div>
 
@@ -56,7 +81,7 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                         disabled={loading}
                         className="px-4 py-2 bg-white hover:bg-gray-200 text-gray-700 font-semibold rounded text-xs border border-gray-300 transition-all cursor-pointer"
                     >
-                        Quay lại
+                        {currentLang === 'en' ? 'Go Back' : 'Quay lại'}
                     </button>
 
                     <button
@@ -68,11 +93,11 @@ export default function ConfirmModal({ isOpen, onClose, onConfirm, registeredCou
                         {loading ? (
                             <>
                                 <span className="animate-spin text-white">⏳</span>
-                                <span>Đang xử lý hủy...</span>
+                                <span>{currentLang === 'en' ? 'Processing cancellation...' : 'Đang xử lý hủy...'}</span>
                             </>
                         ) : (
                             <>
-                                <span>🗑️ Xác nhận Hủy môn</span>
+                                <span>{currentLang === 'en' ? '🗑️ Confirm Cancellation' : '🗑️ Xác nhận Hủy môn'}</span>
                             </>
                         )}
                     </button>

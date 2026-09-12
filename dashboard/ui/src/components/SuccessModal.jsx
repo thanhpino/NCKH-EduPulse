@@ -1,7 +1,10 @@
 /**
  * SuccessModal — Pop-up thông báo Hủy môn học thành công chuẩn UI TDTU
+ * Supports English/Vietnamese localization.
  */
-export default function SuccessModal({ isOpen, onClose, count = 0 }) {
+export default function SuccessModal({ isOpen, onClose, count = 0, lang }) {
+    const currentLang = lang || (typeof window !== 'undefined' ? localStorage.getItem('appLang') || 'vi' : 'vi');
+
     if (!isOpen) return null;
 
     return (
@@ -11,7 +14,7 @@ export default function SuccessModal({ isOpen, onClose, count = 0 }) {
                 <div className="bg-[#005B7F] text-white px-5 py-3 flex items-center justify-between">
                     <div className="flex items-center space-x-2 font-bold text-xs tracking-wide">
                         <span className="text-emerald-400 text-base">✅</span>
-                        <span>THÔNG BÁO TỪ HỆ THỐNG</span>
+                        <span>{currentLang === 'en' ? 'SYSTEM NOTIFICATION' : 'THÔNG BÁO TỪ HỆ THỐNG'}</span>
                     </div>
                     <button
                         onClick={onClose}
@@ -28,15 +31,25 @@ export default function SuccessModal({ isOpen, onClose, count = 0 }) {
                     </div>
 
                     <h4 className="font-bold text-gray-800 text-sm">
-                        ĐÃ HỦY ĐĂNG KÝ THÀNH CÔNG!
+                        {currentLang === 'en' ? 'CANCELLED SUCCESSFULLY!' : 'ĐÃ HỦY ĐĂNG KÝ THÀNH CÔNG!'}
                     </h4>
 
                     <p className="text-xs text-gray-600 leading-relaxed">
-                        Hệ thống đã hủy <span className="font-bold text-emerald-700">{count}</span> môn học và giải phóng slot thành công.
+                        {currentLang === 'en' ? (
+                            <>
+                                System successfully cancelled <span className="font-bold text-emerald-700">{count}</span> course(s) and released class slots.
+                            </>
+                        ) : (
+                            <>
+                                Hệ thống đã hủy <span className="font-bold text-emerald-700">{count}</span> môn học và giải phóng slot thành công.
+                            </>
+                        )}
                     </p>
 
                     <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded text-[11px] text-emerald-800 font-mono">
-                        Trạng thái danh sách môn học đã được cập nhật. Sinh viên vui lòng xem lại danh sách.
+                        {currentLang === 'en'
+                            ? 'Registered course list updated. Please review your schedule.'
+                            : 'Trạng thái danh sách môn học đã được cập nhật. Sinh viên vui lòng xem lại danh sách.'}
                     </div>
                 </div>
 
@@ -46,7 +59,7 @@ export default function SuccessModal({ isOpen, onClose, count = 0 }) {
                         onClick={onClose}
                         className="w-full py-2 bg-[#005B7F] hover:bg-[#00425C] text-white font-bold rounded text-xs shadow transition-all cursor-pointer active:scale-95"
                     >
-                        Đồng ý (Đóng)
+                        {currentLang === 'en' ? 'OK (Close)' : 'Đồng ý (Đóng)'}
                     </button>
                 </div>
             </div>

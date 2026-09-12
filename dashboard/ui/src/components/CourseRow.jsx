@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useQueuePolling } from '../hooks/useQueuePolling';
 import StatusBadge from './StatusBadge';
+import {
+    translateCourseName,
+    translateSchedule,
+    translateInstructor,
+    translateGroupLabel
+} from '../utils/i18n';
 
 /**
  * CourseRow — Dòng môn học chuẩn giao diện Portal TDTU có Accordion chọn Ca/Nhóm học
- * Tông màu đỏ mận mượt mà (TDTU Brand Crimson Red) dễ nhận diện, bỏ các khung trống 
- * không cần thiết (Mã MH, Số TC, Sĩ số, Trạng thái) và căn chỉnh 3 khối dữ liệu chuẩn cột.
+ * Hỗ trợ đa ngôn ngữ Anh / Việt toàn diện.
  */
-export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex, onStatusChange, onGroupChange }) {
+export default function CourseRow({ course, isSelected, onToggle, cartEntry, studentId, rowIndex, onStatusChange, onGroupChange, lang }) {
+    const currentLang = lang || (typeof window !== 'undefined' ? localStorage.getItem('appLang') || 'vi' : 'vi');
+
     const { status, position, eta } = useQueuePolling(
         cartEntry?.ticketId ?? null,
         course.courseId,
@@ -65,6 +72,10 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
             ? 'bg-white'
             : 'bg-[#FFFDF0]';
 
+    const displayCourseName = translateCourseName(course.courseId, course.courseName, currentLang);
+    const displaySchedule = translateSchedule(activeGroup.schedule, currentLang);
+    const displayInstructor = translateInstructor(activeGroup.instructor, currentLang);
+
     return (
         <>
             {/* Dòng môn học chính */}
@@ -86,7 +97,7 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                 {/* Môn học & Nút mũi tên mở danh sách nhóm ca học */}
                 <td className="p-2 font-medium text-gray-900 border-r border-[#E8DCDC]">
                     <div className="flex items-center justify-between gap-2">
-                        <span>{course.courseName}</span>
+                        <span>{displayCourseName}</span>
 
                         {/* Button Mũi tên xuống để mở list nhóm (đẩy các môn dưới xuống) */}
                         <button
@@ -96,9 +107,9 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                                 ? 'bg-[#8C0000] text-white border-[#8C0000] shadow-sm'
                                 : 'bg-amber-100/90 hover:bg-amber-200 text-amber-900 border-amber-300 shadow-2xs'
                                 }`}
-                            title="Bấm để xem lịch các ca học và chọn nhóm"
+                            title={currentLang === 'en' ? 'Click to view class section schedules and select group' : 'Bấm để xem lịch các ca học và chọn nhóm'}
                         >
-                            <span>Nhóm {activeGroup.group}</span>
+                            <span>{translateGroupLabel(activeGroup.group, currentLang)}</span>
                             <svg
                                 className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                                 fill="none"
@@ -124,26 +135,29 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                 {/* Lịch học (Cập nhật theo Nhóm/Ca đã chọn) */}
                 <td className="p-2 text-gray-700 font-mono text-[11px] border-r border-[#E8DCDC]">
                     <span className="font-semibold text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 mr-1 text-[10px]">
-                        N{activeGroup.group}
+                        {currentLang === 'en' ? `G${activeGroup.group}` : `N${activeGroup.group}`}
                     </span>
-                    {activeGroup.schedule}
+                    {displaySchedule}
                 </td>
 
                 {/* Tên Giảng viên (Cập nhật theo Nhóm/Ca đã chọn) */}
                 <td className="p-2 text-gray-700 border-r border-[#E8DCDC]">
-                    {activeGroup.instructor}
+                    {displayInstructor}
                 </td>
 
                 {/* Status Badge Column */}
                 <td className="p-2">
-                    <StatusBadge status={status} position={position} eta={eta} />
+                    <StatusBadge status={status} position={position} eta={eta} lang={currentLang} />
                 </td>
             </tr>
 
-            {/* Dòng các Nhóm / Ca học (TÔNG MÀU ĐỎ MẬN TDTU SÁNG MƯỢT, BỎ CÁC KHUNG TRỐNG KHÔNG CẦN THIẾT) */}
+            {/* Dòng các Nhóm / Ca học (TÔNG MÀU ĐỎ MẬN TDTU SÁNG MƯỢT) */}
             {isExpanded &&
                 groups.map((g) => {
                     const isThisGroupSelected = selectedGroupCode === g.group;
+                    const groupScheduleTrans = translateSchedule(g.schedule, currentLang);
+                    const groupInstructorTrans = translateInstructor(g.instructor, currentLang);
+
                     return (
                         <tr
                             key={g.group}
@@ -171,30 +185,30 @@ export default function CourseRow({ course, isSelected, onToggle, cartEntry, stu
                                         className="accent-[#8C0000] cursor-pointer h-3.5 w-3.5"
                                     />
                                     <span className={`font-mono text-xs ${isThisGroupSelected ? 'font-bold text-[#8C0000]' : 'text-gray-800'}`}>
-                                        Nhóm {g.group}
+                                        {translateGroupLabel(g.group, currentLang)}
                                     </span>
                                     {isThisGroupSelected && (
                                         <span className="bg-[#8C0000] text-white text-[10px] font-bold px-1.5 py-0.2 rounded shadow-2xs">
-                                            ĐANG CHỌN
+                                            {currentLang === 'en' ? 'SELECTING' : 'ĐANG CHỌN'}
                                         </span>
                                     )}
                                 </div>
                             </td>
 
-                            {/* 2. Gộp cột Số TC + Sĩ Số + Lịch Học (colSpan 3) — Căn thẳng cột Lịch Học */}
+                            {/* 2. Gộp cột Số TC + Sĩ Số + Lịch Học (colSpan 3) */}
                             <td colSpan={3} className="p-2 font-mono text-[11px] border-r border-rose-200/70">
                                 <span className="font-semibold text-[#8C0000] bg-rose-100 px-1 py-0.5 rounded border border-rose-300 mr-1.5 text-[10px]">
-                                    N{g.group}
+                                    {currentLang === 'en' ? `G${g.group}` : `N${g.group}`}
                                 </span>
                                 <span className={isThisGroupSelected ? 'text-gray-900 font-semibold' : 'text-gray-700'}>
-                                    {g.schedule}
+                                    {groupScheduleTrans}
                                 </span>
                             </td>
 
-                            {/* 3. Gộp cột Tên Giảng Viên + Trạng Thái (colSpan 2) — Căn thẳng cột Giảng Viên */}
+                            {/* 3. Gộp cột Tên Giảng Viên + Trạng Thái (colSpan 2) */}
                             <td colSpan={2} className="p-2 text-gray-800">
                                 <span className={isThisGroupSelected ? 'text-[#8C0000] font-bold' : 'text-gray-700'}>
-                                    {g.instructor}
+                                    {groupInstructorTrans}
                                 </span>
                             </td>
                         </tr>

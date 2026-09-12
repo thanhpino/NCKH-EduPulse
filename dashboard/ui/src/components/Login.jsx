@@ -49,7 +49,7 @@ const TRANSLATIONS = {
 
 export default function Login() {
   const navigate = useNavigate();
-  const [lang, setLang] = useState('vi');
+  const [lang, setLang] = useState(() => localStorage.getItem('appLang') || 'vi');
   const [mssv, setMssv] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -66,7 +66,11 @@ export default function Login() {
   const isFormValid = isMssvValid && isPasswordValid;
 
   const toggleLanguage = () => {
-    setLang((prev) => (prev === 'vi' ? 'en' : 'vi'));
+    setLang((prev) => {
+      const next = prev === 'vi' ? 'en' : 'vi';
+      localStorage.setItem('appLang', next);
+      return next;
+    });
   };
 
   const handleMssvChange = (e) => {
@@ -189,13 +193,13 @@ export default function Login() {
 
           {/* Bottom-Right Cat Graphic */}
           <div className="absolute bottom-4 right-4 pointer-events-none hidden md:block">
-            <img 
-              src={lang === 'vi' ? catImg : catEnImg} 
-              alt="Mascot Cat" 
-              className="w-48 h-auto object-contain" 
+            <img
+              src={lang === 'vi' ? catImg : catEnImg}
+              alt="Mascot Cat"
+              className="w-48 h-auto object-contain"
             />
           </div>
-        
+
 
           {/* Form Header */}
           <div className="form-header">
@@ -215,10 +219,10 @@ export default function Login() {
             <div className="form-group">
               <div
                 className={`input-container ${mssvTouched
-                    ? isMssvValid
-                      ? 'is-valid'
-                      : 'is-invalid'
-                    : ''
+                  ? isMssvValid
+                    ? 'is-valid'
+                    : 'is-invalid'
+                  : ''
                   }`}
               >
                 <span className="input-prefix-icon">
@@ -256,10 +260,10 @@ export default function Login() {
             <div className="form-group">
               <div
                 className={`input-container ${passwordTouched
-                    ? isPasswordValid
-                      ? 'is-valid'
-                      : 'is-invalid'
-                    : ''
+                  ? isPasswordValid
+                    ? 'is-valid'
+                    : 'is-invalid'
+                  : ''
                   }`}
               >
                 <span className="input-prefix-icon">
