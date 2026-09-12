@@ -1,35 +1,54 @@
 /**
- * StatusBadge — hiển thị trạng thái đăng ký môn học per-row
+ * StatusBadge — Status Indicator per course row (Virtual Waiting Room)
  *
- * status: null         → không hiện gì (chưa bấm Đăng ký)
- * status: 'waiting'    → 🟡 Đang chờ #pos · ~eta phút
- * status: 'PENDING_ENTRY' | 'ACTIVE' → ⏳ Đang xử lý...
- * status: 'DONE'       → 🟢 Đã đăng ký
+ * status: null            → Not requested yet
+ * status: 'waiting'       → 🟡 Hàng đợi #position · ~X s/phút
+ * status: 'PENDING_ENTRY' → ⚡ Đến lượt! (Cấp Token)
+ * status: 'ACTIVE'        → ⏳ Đang đăng ký...
+ * status: 'DONE'          → 🟢 Đã đăng ký
+ * status: 'course_full'   → 🔴 Hết chỗ
  */
 export default function StatusBadge({ status, position, eta }) {
     if (!status) return null;
 
     if (status === 'DONE') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
                 🟢 Đã đăng ký
             </span>
         );
     }
 
-    if (status === 'waiting') {
-        const etaText = eta ? `~${Math.ceil(eta / 60)} phút` : '...';
+    if (status === 'course_full') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
-                🟡 Đang chờ {position ? `#${position}` : ''} · {etaText}
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+                🔴 Hết chỗ
             </span>
         );
     }
 
-    // PENDING_ENTRY, ACTIVE, hoặc trạng thái trung gian khác
+    if (status === 'waiting') {
+        const seconds = eta ? Math.max(1, eta) : 2;
+        const etaText = seconds >= 60 ? `~${Math.ceil(seconds / 60)} phút` : `~${seconds}s`;
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm animate-pulse">
+                🟡 Hàng đợi {position ? `#${position}` : '#1'} · {etaText}
+            </span>
+        );
+    }
+
+    if (status === 'PENDING_ENTRY') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-900 border border-purple-300 shadow-sm animate-pulse">
+                ⚡ Đến lượt! (Cấp Token)
+            </span>
+        );
+    }
+
+    // ACTIVE status
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
-            ⏳ Đang xử lý...
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
+            ⏳ Đang đăng ký...
         </span>
     );
 }
