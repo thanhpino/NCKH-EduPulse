@@ -1,11 +1,12 @@
 /**
  * StatusBadge — Status Indicator per course row (Virtual Waiting Room)
  *
- * status: null          → Not requested yet
- * status: 'waiting'     → 🟡 Hàng đợi #position · ~X s/phút
- * status: 'PENDING_ENTRY'→ ⚡ Đến lượt! (Cấp Token)
- * status: 'ACTIVE'      → ⏳ Đang đăng ký...
- * status: 'DONE'        → 🟢 Đã đăng ký
+ * status: null            → Not requested yet
+ * status: 'waiting'       → 🟡 Hàng đợi #position · ~X s/phút
+ * status: 'PENDING_ENTRY' → ⚡ Đến lượt! (Cấp Token)
+ * status: 'ACTIVE'        → ⏳ Đang đăng ký...
+ * status: 'DONE'          → 🟢 Đã đăng ký
+ * status: 'course_full'   → 🔴 Hết chỗ
  */
 export default function StatusBadge({ status, position, eta }) {
     if (!status) return null;
@@ -14,6 +15,14 @@ export default function StatusBadge({ status, position, eta }) {
         return (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
                 🟢 Đã đăng ký
+            </span>
+        );
+    }
+
+    if (status === 'course_full') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+                🔴 Hết chỗ
             </span>
         );
     }

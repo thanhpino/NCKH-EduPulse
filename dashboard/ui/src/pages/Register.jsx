@@ -383,8 +383,8 @@ export default function Register() {
                 </div>
             )}
 
-            {/* Main Content Area */}
-            <div className="max-w-7xl mx-auto px-6 py-4 space-y-4">
+            {/* Main Content Area — 2 Column Layout */}
+            <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-4">
                 {/* Academic Term Header Panel */}
                 <div className="bg-white p-4 rounded shadow-sm border border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
                     <div className="flex items-center space-x-4">
@@ -441,53 +441,151 @@ export default function Register() {
                     </button>
                 </div>
 
-                {/* Main Course Table (Standard TDTU Red Header Design) */}
-                <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
-                    <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
-                        <span>DANH SÁCH MÔN HỌC MỞ LỚP</span>
-                        <span className="text-[11px] font-normal text-amber-200">
-                            Hiển thị: {courses.length} môn
-                        </span>
+                {/* 2-Column Grid: Course Table (Left) + Registered Sidebar (Right) */}
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-start">
+                    {/* LEFT — Main Course Table */}
+                    <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
+                        <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
+                            <span>DANH SÁCH MÔN HỌC MỞ LỚP</span>
+                            <span className="text-[11px] font-normal text-amber-200">
+                                Hiển thị: {courses.length} môn
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-[#8C0000] text-white font-bold text-[11px]">
+                                    <tr>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
+                                        <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC & CHỌN NHÓM</th>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
+                                        <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
+                                        <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
+                                        <th className="p-2 w-36 text-center">TRẠNG THÁI</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {courses.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="text-center py-8 text-gray-400">
+                                                Đang tải danh sách môn học...
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        courses.map((course, idx) => (
+                                            <CourseRow
+                                                key={course.courseId}
+                                                course={course}
+                                                isSelected={selected.has(course.courseId)}
+                                                onToggle={() => toggleSelect(course.courseId)}
+                                                cartEntry={cart[course.courseId]}
+                                                studentId={mssv}
+                                                rowIndex={idx}
+                                                onStatusChange={handleStatusChange}
+                                                onGroupChange={(cId, groupCode) => setSelectedGroups(prev => ({ ...prev, [cId]: groupCode }))}
+                                            />
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-[#8C0000] text-white font-bold text-[11px]">
-                                <tr>
-                                    <th className="p-2 text-center border-r border-[#A31A1A] w-10">CHỌN</th>
-                                    <th className="p-2 border-r border-[#A31A1A] w-20">MÃ MH</th>
-                                    <th className="p-2 border-r border-[#A31A1A]">MÔN HỌC & CHỌN NHÓM</th>
-                                    <th className="p-2 text-center border-r border-[#A31A1A] w-14">SỐ TC</th>
-                                    <th className="p-2 text-center border-r border-[#A31A1A] w-24">SL/TỐI ĐA</th>
-                                    <th className="p-2 border-r border-[#A31A1A]">LỊCH HỌC: TIẾT - THỨ - PHÒNG - TUẦN</th>
-                                    <th className="p-2 border-r border-[#A31A1A]">TÊN GIẢNG VIÊN</th>
-                                    <th className="p-2 w-48 text-center">TRẠNG THÁI</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {courses.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={8} className="text-center py-8 text-gray-400">
-                                            Đang tải danh sách môn học...
-                                        </td>
-                                    </tr>
+                    {/* RIGHT — Danh sách môn đã đăng ký (Sticky Sidebar) */}
+                    <div className="xl:sticky xl:top-4">
+                        <div className="bg-white rounded shadow-sm border border-emerald-200 overflow-hidden">
+                            {/* Header */}
+                            <div className="bg-[#005B7F] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
+                                <span className="flex items-center gap-1.5">
+                                    📋 MÔN HỌC ĐÃ ĐĂNG KÝ
+                                </span>
+                                <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                    {registeredCount} môn
+                                </span>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-3">
+                                {registeredCount === 0 ? (
+                                    <div className="text-center py-8 space-y-2">
+                                        <div className="text-3xl">📭</div>
+                                        <p className="text-gray-400 text-xs">Chưa đăng ký môn nào</p>
+                                        <p className="text-gray-300 text-[10px]">Chọn môn từ bảng bên trái và nhấn "Đăng ký"</p>
+                                    </div>
                                 ) : (
-                                    courses.map((course, idx) => (
-                                        <CourseRow
-                                            key={course.courseId}
-                                            course={course}
-                                            isSelected={selected.has(course.courseId)}
-                                            onToggle={() => toggleSelect(course.courseId)}
-                                            cartEntry={cart[course.courseId]}
-                                            studentId={mssv}
-                                            rowIndex={idx}
-                                            onStatusChange={handleStatusChange}
-                                            onGroupChange={(cId, groupCode) => setSelectedGroups(prev => ({ ...prev, [cId]: groupCode }))}
-                                        />
-                                    ))
+                                    <div className="space-y-2">
+                                        {registrations.map((reg, idx) => {
+                                            const courseInfo = courses.find((c) => c.courseId === reg.courseId);
+                                            const groupCode = selectedGroups[reg.courseId] || courseInfo?.group || '01';
+                                            const groupInfo = courseInfo?.groups?.find((g) => g.group === groupCode);
+                                            return (
+                                                <div
+                                                    key={reg.courseId}
+                                                    className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2.5 space-y-1.5 hover:bg-emerald-50 transition-colors"
+                                                >
+                                                    {/* Row 1: Course ID + Name + Credits */}
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[10px] font-bold text-white bg-emerald-600 px-1.5 py-0.5 rounded">
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="font-mono font-bold text-emerald-800 text-xs">
+                                                                    {reg.courseId}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">
+                                                                {courseInfo?.courseName || reg.courseId}
+                                                            </p>
+                                                        </div>
+                                                        <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
+                                                            {courseInfo?.credits || 3} TC
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Row 2: Group + Schedule + Instructor */}
+                                                    <div className="flex items-center gap-1.5 text-[10px] text-gray-600">
+                                                        <span className="bg-amber-100 text-amber-800 font-bold px-1 py-0.5 rounded border border-amber-200">
+                                                            N{groupCode}
+                                                        </span>
+                                                        <span className="truncate">
+                                                            {groupInfo?.instructor || courseInfo?.instructor || '---'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Row 3: Status */}
+                                                    <div className="flex items-center gap-1 text-[10px]">
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full border border-emerald-300">
+                                                            🟢 Đã đăng ký thành công
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 )}
-                            </tbody>
-                        </table>
+
+                                {/* Total Credits Summary */}
+                                {registeredCount > 0 && (
+                                    <div className="mt-3 pt-2.5 border-t border-emerald-200">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="font-semibold text-gray-600">Tổng số tín chỉ đã ĐK:</span>
+                                            <span className="font-bold text-emerald-700 text-sm font-mono">
+                                                {registrations.reduce((sum, r) => {
+                                                    const c = courses.find((c) => c.courseId === r.courseId);
+                                                    return sum + (c?.credits || 3);
+                                                }, 0)} TC
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 mt-1 italic">
+                                            Đối chiếu với Kế hoạch học tập để đảm bảo đủ tín chỉ
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
