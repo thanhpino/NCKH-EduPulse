@@ -32,9 +32,9 @@ module.exports = (redis, proxy, logger) => {
         if (alive !== redisAlive) {
             // Only log when state CHANGES, avoid spam log every healthcheck
             if (!alive) {
-                logger.error(' Redis unavailable — switching to PASS-THROUGH mode (queue/token features disabled)');
+                logger.error('Redis unavailable — switching to PASS-THROUGH mode (queue/token features disabled)');
             } else {
-                logger.info(' Redis recovered — resuming normal queue/token mode');
+                logger.info('Redis recovered — resuming normal queue/token mode');
             }
         }
         redisAlive = alive;

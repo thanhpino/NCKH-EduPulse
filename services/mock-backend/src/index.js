@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -28,11 +29,16 @@ const registrationSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 });
 
+const testStudentSchema = new mongoose.Schema({
+  studentId: { type: String, required: true },
+  passwordHash: { type: String, required: true },
+});
 // Compound unique index — đảm bảo 1 SV chỉ đăng ký 1 môn duy nhất 1 lần ở tầng DB (chống race condition)
 registrationSchema.index({ studentId: 1, courseId: 1 }, { unique: true });
 
 const Course = mongoose.model('Course', courseSchema);
 const Registration = mongoose.model('Registration', registrationSchema);
+const TestStudent = mongoose.model('TestStudent', testStudentSchema);
 
 // Routes
 
@@ -60,6 +66,14 @@ app.post('/api/register', async (req, res) => {
     // Intentional: no input validation, no duplicate check optimization
     // Intentional: artificial delay to simulate slow DB
     await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+
+    // Validate studentId
+    if (!studentId || studentId.trim() === '') {
+      return res.status(400).json({ error: 'Registration student ID is missing or blank' });
+    }
+    if (!courseId || courseId.trim() === '') {
+      return res.status(400).json({ error: 'Registration course ID is missing or blank' });
+    }
 
     const course = await Course.findOne({ courseId });
     if (!course) {
@@ -99,36 +113,283 @@ app.get('/api/registrations', async (req, res) => {
     const registrations = await Registration.find(filter).sort({ timestamp: -1 });
     res.json({ count: registrations.length, registrations });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Student already registered for this course' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
-// Seed sample courses
-app.post('/api/seed', async (req, res) => {
+// Unregister / Drop courses for a student
+app.delete('/api/unregister', async (req, res) => {
   try {
-    await Course.deleteMany({});
-    await Registration.deleteMany({});
+    const { studentId, courseId } = req.body;
+    if (!studentId) {
+      return res.status(400).json({ error: 'studentId is required' });
+    }
 
-    const sampleCourses = [
-      { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 40 },
-      { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu', maxSlots: 35 },
-      { courseId: 'CS301', courseName: 'Cơ sở Dữ liệu', maxSlots: 30 },
-      { courseId: 'CS401', courseName: 'Mạng Máy tính', maxSlots: 25 },
-      { courseId: 'CS501', courseName: 'Trí tuệ Nhân tạo', maxSlots: 20 },
-    ];
+    const filter = { studentId };
+    if (courseId) {
+      filter.courseId = courseId;
+    }
 
-    await Course.insertMany(sampleCourses);
-    res.json({ message: 'Seeded successfully', count: sampleCourses.length });
+    const regsToRemove = await Registration.find(filter);
+    if (regsToRemove.length === 0) {
+      return res.json({ message: 'No registrations found to delete', count: 0 });
+    }
+
+    for (const reg of regsToRemove) {
+      await Course.updateOne(
+        { courseId: reg.courseId, enrolled: { $gt: 0 } },
+        { $inc: { enrolled: -1 } }
+      );
+    }
+
+    const deleteResult = await Registration.deleteMany(filter);
+
+    res.json({
+      success: true,
+      message: `Successfully unregistered ${deleteResult.deletedCount} courses`,
+      count: deleteResult.deletedCount,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Seed 25 sample courses 
+const sampleCourses = [
+  { courseId: 'CS101', courseName: 'Nhập môn Lập trình', maxSlots: 120 },
+  { courseId: 'CS102', courseName: 'Kỹ thuật Lập trình', maxSlots: 100 },
+  { courseId: 'CS201', courseName: 'Cấu trúc Dữ liệu & Giải thuật', maxSlots: 80 },
+  { courseId: 'CS202', courseName: 'Lập trình Hướng đối tượng', maxSlots: 90 },
+  { courseId: 'CS301', courseName: 'Cơ sở Dữ liệu', maxSlots: 60 },
+  { courseId: 'CS302', courseName: 'Hệ Quản trị CSDL', maxSlots: 70 },
+  { courseId: 'CS401', courseName: 'Mạng Máy tính', maxSlots: 50 },
+  { courseId: 'CS402', courseName: 'Lập trình Mạng', maxSlots: 60 },
+  { courseId: 'CS501', courseName: 'Trí tuệ Nhân tạo', maxSlots: 40 },
+  { courseId: 'CS502', courseName: 'Học máy & Khai phá Dữ liệu', maxSlots: 50 },
+  { courseId: 'CS601', courseName: 'Phát triển Ứng dụng Web', maxSlots: 80 },
+  { courseId: 'CS602', courseName: 'Lập trình Thiết bị Di động', maxSlots: 75 },
+  { courseId: 'CS701', courseName: 'An toàn & Bảo mật Thông tin', maxSlots: 65 },
+  { courseId: 'CS702', courseName: 'Mã hóa & Ứng dụng', maxSlots: 55 },
+  { courseId: 'CS801', courseName: 'Kiến trúc Phần mềm', maxSlots: 50 },
+  { courseId: 'CS802', courseName: 'Kiểm thử & Đảm bảo Chất lượng PM', maxSlots: 60 },
+  { courseId: 'CS901', courseName: 'Điện toán Đám mây', maxSlots: 70 },
+  { courseId: 'CS902', courseName: 'Hệ thống Phân tán', maxSlots: 45 },
+  { courseId: 'CS1001', courseName: 'Lập trình Python Nâng cao', maxSlots: 85 },
+  { courseId: 'CS1002', courseName: 'Xử lý Ảnh & Thị giác Máy tính', maxSlots: 40 },
+  { courseId: 'CS1101', courseName: 'Xử lý Ngôn ngữ Tự nhiên', maxSlots: 50 },
+  { courseId: 'CS1102', courseName: 'Công nghệ Blockchain & Smart Contracts', maxSlots: 60 },
+  { courseId: 'CS1201', courseName: 'Quản lý Dự án Phần mềm', maxSlots: 90 },
+  { courseId: 'CS1202', courseName: 'Thiết kế Giao diện UI/UX', maxSlots: 100 },
+  { courseId: 'CS1203', courseName: 'Thực tập Doanh nghiệp & Đồ án', maxSlots: 150 },
+];
+
+app.post('/api/seed', async (req, res) => {
+  try {
+    await Course.deleteMany({});
+    await Registration.deleteMany({});
+    await Course.insertMany(sampleCourses);
+    res.json({ message: 'Seeded 25 courses successfully', count: sampleCourses.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Populate testStudentSchema table with 4 test accounts
+// Passwords hashed directly inside the method
+app.post('/api/seedtestStudents', async (req, res) => {
+  try {
+    await TestStudent.deleteMany({});
+
+    const testAccounts = [
+      { studentId: '52000001', password: 'Password123@' },
+      { studentId: '52000002', password: 'Password123@' },
+      { studentId: '52000003', password: 'Password123@' },
+      { studentId: '52000004', password: 'Password123@' },
+    ];
+
+    // Hash passwords directly inside the method using crypto SHA-256
+    const hashedAccounts = testAccounts.map((account) => {
+      const passwordHash = crypto
+        .createHash('sha256')
+        .update(account.password)
+        .digest('hex');
+
+      return {
+        studentId: account.studentId,
+        passwordHash,
+      };
+    });
+
+    await TestStudent.insertMany(hashedAccounts);
+
+    res.status(201).json({
+      message: 'Populated testStudentSchema table with 4 test accounts successfully',
+      count: hashedAccounts.length,
+      accounts: testAccounts.map((acc, index) => ({
+        studentId: acc.studentId,
+        plainPassword: acc.password,
+        passwordHash: hashedAccounts[index].passwordHash,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// app.post('/api/seed-students', seedStudentsHandler);
+// app.post('/api/students/seed', seedStudentsHandler);
+
+// Get all test students
+app.get('/api/test-students', async (req, res) => {
+  try {
+    const students = await TestStudent.find({}, { __v: 0 });
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Login endpoint: validate credentials against testStudentSchema
+app.post('/api/login', async (req, res) => {
+  try {
+    const { studentId, password } = req.body;
+    if (!studentId || !password) {
+      return res.status(400).json({ success: false, error: 'MSSV và mật khẩu không được để trống' });
+    }
+
+    // Auto-seed default test accounts if collection is currently empty
+    const studentCount = await TestStudent.countDocuments();
+    if (studentCount === 0) {
+      const defaultAccounts = [
+        { studentId: '52000001', password: 'Password123@' },
+        { studentId: '52000002', password: 'Password123@' },
+        { studentId: '52000003', password: 'Password123@' },
+        { studentId: '52000004', password: 'Password123@' },
+      ];
+      const seeded = defaultAccounts.map((acc) => ({
+        studentId: acc.studentId,
+        passwordHash: crypto
+          .createHash('sha256')
+          .update(acc.password)
+          .digest('hex'),
+      }));
+      await TestStudent.insertMany(seeded);
+    }
+
+    // Hash inputted password directly inside the method using SHA-256
+    const passwordHash = crypto
+      .createHash('sha256')
+      .update(password)
+      .digest('hex');
+
+    const student = await TestStudent.findOne({ studentId: String(studentId).trim() });
+    if (!student || student.passwordHash !== passwordHash) {
+      return res.status(401).json({
+        success: false,
+        error: 'MSSV hoặc mật khẩu không chính xác',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Đăng nhập thành công',
+      studentId: student.studentId,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Tests registration and outputs responses sequentially
+app.post('/api/test-register', async (req, res) => {
+  try {
+    await Registration.deleteMany({}); // Clear previous test data
+
+    const sampleRegs = [
+      { studentId: 'SV20210001', courseId: 'CS101' },
+      { studentId: 'SV20220055', courseId: 'CS201' },
+      { studentId: 'SV20230199', courseId: 'CS501' },
+      { studentId: '', courseId: 'CS101' },
+      { studentId: null, courseId: 'CS201' },
+      { studentId: '   ', courseId: 'CS301' },
+      { courseId: 'CS401' },
+      { studentId: 'SV20210002', courseId: '' },
+      { studentId: 'SV20210002', courseId: null },
+      { studentId: 'SV20210002', courseId: '   ' },
+      { studentId: 'SV20200888' },
+      { studentId: '', courseId: '' },
+      { studentId: 'SV20210001', courseId: 'INVALID999' }
+    ];
+
+    // Set headers for streaming chunked data
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // Iterate through the array and send actual HTTP POST requests
+    for (const regData of sampleRegs) {
+      let resultChunk;
+      try {
+        const response = await fetch(`${baseUrl}/api/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(regData)
+        });
+
+        const responseData = await response.json();
+
+        resultChunk = {
+          payload: regData,
+          status: response.status,
+          success: response.ok,
+          response: responseData
+        };
+      } catch (fetchErr) {
+        resultChunk = {
+          payload: regData,
+          success: false,
+          error: fetchErr.message
+        };
+      }
+
+      // Log to the server console
+      console.log(`[TEST-REGISTER] Processed: ${JSON.stringify(resultChunk)}`);
+
+      // Write immediately to the client connection
+      res.write(JSON.stringify(resultChunk) + '\n');
+    }
+
+    // Close the connection when the loop is done
+    res.end();
+
+  } catch (err) {
+    // If the headers were already sent, we can't use res.status()
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.end(JSON.stringify({ error: err.message }) + '\n');
+    }
+  }
+});
+
+// ============================================
 // Start server
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('📦 Connected to MongoDB');
+    await Registration.syncIndexes();
+    for (const c of sampleCourses) {
+      await Course.updateOne(
+        { courseId: c.courseId },
+        { $set: { maxSlots: c.maxSlots, courseName: c.courseName } },
+        { upsert: true }
+      );
+    }
     app.listen(PORT, () => {
       console.log(`🎯 Mock Backend running on port ${PORT}`);
       console.log(`⚠️  This service is intentionally unoptimized for demo purposes`);
