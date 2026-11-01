@@ -42,3 +42,6 @@ infra/terraform/.terraform.lock.hcl
 
 # Test results
 loadtest/results/
+
+# Office temp files
+~$*
