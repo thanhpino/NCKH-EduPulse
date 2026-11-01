@@ -110,7 +110,7 @@ export function translateInstructor(instructorStr, lang = 'vi') {
         .replace(/ThS\./g, 'M.Sc.')
         .replace(/Nguyễn Văn A/g, 'Nguyen Van A')
         .replace(/Trương Minh Thành/g, 'Truong Minh Thanh')
-        .replace(/Huỳnh Trần Thiên Phú/g, 'Huynh Tran Thien Phu')
+        .replace(/Lâm Tấn Đạt/g, 'Lam Tan Dat')
         .replace(/Phạm Minh D/g, 'Pham Minh D')
         .replace(/Đỗ Thanh E/g, 'Do Thanh E')
         .replace(/Nguyễn Thị Thu/g, 'Nguyen Thi Thu')

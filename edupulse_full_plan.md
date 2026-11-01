@@ -52,7 +52,7 @@
 
 ---
 
-## 4. Roadmap 14 tuần (2 người: A thiên backend/data, B thiên hạ tầng/DevOps)
+## 4. Roadmap 14 tuần (3 thành viên: Trương Minh Thành - DevOps/Arch, Lâm Tấn Đạt - Backend/Data, Lâm Vĩ Hoằng - Frontend/Integration)
 
 ### Giai đoạn 0 — Chuẩn bị (Tuần 1)
 - Viết đề cương, gửi thầy duyệt (đã có bằng chứng báo chí + hướng giải pháp rõ ràng)

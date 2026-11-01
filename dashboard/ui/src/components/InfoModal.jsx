@@ -44,26 +44,36 @@ export default function InfoModal({ isOpen, onClose, lang }) {
                     <div>
                         <h5 className="font-bold text-gray-900 text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full bg-[#8C0000]"></span>
-                            {currentLang === 'en' ? 'Development Team (2 Members)' : 'Đội Ngũ Phát Triển Dự Án (2 Members)'}
+                            {currentLang === 'en' ? 'Development Team (3 Members)' : 'Đội Ngũ Phát Triển Dự Án (3 Thành viên)'}
                         </h5>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-gray-50 border border-gray-200 p-3 rounded flex items-center space-x-3">
-                                <div className="w-9 h-9 rounded-full bg-[#005B7F] text-white font-bold text-xs flex items-center justify-center shadow">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div className="bg-gray-50 border border-gray-200 p-2.5 rounded flex items-center space-x-2.5">
+                                <div className="w-8 h-8 rounded-full bg-[#005B7F] text-white font-bold text-xs flex items-center justify-center shadow shrink-0">
                                     MT
                                 </div>
-                                <div>
-                                    <div className="font-bold text-gray-900">Trương Minh Thành</div>
-                                    <div className="text-[10px] text-gray-500 font-mono">System Architect & DevOps</div>
+                                <div className="min-w-0">
+                                    <div className="font-bold text-gray-900 truncate">Trương Minh Thành</div>
+                                    <div className="text-[10px] text-gray-500 font-mono truncate">System Architect & DevOps</div>
                                 </div>
                             </div>
 
-                            <div className="bg-gray-50 border border-gray-200 p-3 rounded flex items-center space-x-3">
-                                <div className="w-9 h-9 rounded-full bg-[#8C0000] text-white font-bold text-xs flex items-center justify-center shadow">
-                                    TP
+                            <div className="bg-gray-50 border border-gray-200 p-2.5 rounded flex items-center space-x-2.5">
+                                <div className="w-8 h-8 rounded-full bg-[#8C0000] text-white font-bold text-xs flex items-center justify-center shadow shrink-0">
+                                    TĐ
                                 </div>
-                                <div>
-                                    <div className="font-bold text-gray-900">Huỳnh Trần Thiên Phú</div>
-                                    <div className="text-[10px] text-gray-500 font-mono">Frontend & Backend</div>
+                                <div className="min-w-0">
+                                    <div className="font-bold text-gray-900 truncate">Lâm Tấn Đạt</div>
+                                    <div className="text-[10px] text-gray-500 font-mono truncate">Backend & Data Engine</div>
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50 border border-gray-200 p-2.5 rounded flex items-center space-x-2.5">
+                                <div className="w-8 h-8 rounded-full bg-[#2E7D32] text-white font-bold text-xs flex items-center justify-center shadow shrink-0">
+                                    VH
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="font-bold text-gray-900 truncate">Lâm Vĩ Hoằng</div>
+                                    <div className="text-[10px] text-gray-500 font-mono truncate">Frontend & Integration</div>
                                 </div>
                             </div>
                         </div>
