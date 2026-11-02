@@ -97,7 +97,7 @@ const TRANSLATIONS = {
 const MOCK_METADATA = {
     CS101: { credits: 3, group: '01', schedule: '---012---, Thứ 2, Phòng C101, ---1234----9012345---', instructor: 'TS. Nguyễn Văn A' },
     CS201: { credits: 4, group: '02', schedule: '---345---, Thứ 3, Phòng C202, ---1234567---12345---', instructor: 'PGS. TS. Trương Minh Thành' },
-    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, ---1--456789012345---', instructor: 'ThS. Huỳnh Trần Thiên Phú' },
+    CS301: { credits: 3, group: '01', schedule: '---678---, Thứ 4, Phòng B105, ---1--456789012345---', instructor: 'ThS. Lâm Tấn Đạt' },
     CS401: { credits: 3, group: '03', schedule: '---012---, Thứ 5, Phòng A301, ---1234567---12345---', instructor: 'TS. Phạm Minh D' },
     CS501: { credits: 3, group: '01', schedule: '---345---, Thứ 6, Phòng C304, ---123456--9012345---', instructor: 'TS. Đỗ Thanh E' },
 };
@@ -148,7 +148,7 @@ export default function Register() {
                 const instructors = [
                     'TS. Nguyễn Văn A',
                     'PGS. TS. Trương Minh Thành',
-                    'ThS. Huỳnh Trần Thiên Phú',
+                    'ThS. Lâm Tấn Đạt',
                     'TS. Phạm Minh D',
                     'TS. Đỗ Thanh E',
                     'ThS. Nguyễn Thị Thu',
@@ -406,10 +406,10 @@ export default function Register() {
     });
 
     return (
-        <div className="min-h-screen bg-[#F8F9FA] text-gray-800 font-sans pb-24">
+        <div className="min-h-screen w-full bg-[#F8F9FA] text-gray-800 font-sans pb-24 flex flex-col flex-1">
             {/* Top Navigation Bar (Teal / Steel Blue TDTU Style) */}
-            <nav className="bg-[#005B7F] text-white px-6 py-2.5 flex items-center justify-between shadow-md text-xs font-medium">
-                <div className="flex items-center space-x-6">
+            <nav className="w-full bg-[#005B7F] text-white px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md text-xs font-medium sticky top-0 z-40">
+                <div className="flex items-center flex-wrap gap-2.5 sm:gap-6">
                     <span className="font-bold text-sm tracking-wide flex items-center gap-2">
                         <span className="bg-white text-[#005B7F] px-1.5 py-0.5 rounded font-black text-xs">EDU PULSE</span>
                         {t.portalBrand}
@@ -439,7 +439,7 @@ export default function Register() {
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-3">
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                     {/* Flag Language Switcher (Left of MSSV) */}
                     <button
                         type="button"
@@ -512,9 +512,9 @@ export default function Register() {
             )}
 
             {/* Main Content Area — 2 Column Layout */}
-            <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-4">
+            <div className="w-full max-w-[1850px] mx-auto px-3 sm:px-6 py-4 space-y-4 flex-1">
                 {/* Academic Term Header Panel */}
-                <div className="bg-white p-4 rounded shadow-sm border border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
+                <div className="w-full bg-white p-3.5 sm:p-4 rounded-lg shadow-xs border border-gray-200 flex flex-wrap items-center justify-between text-xs gap-3">
                     <div className="flex items-center space-x-4">
                         <div>
                             <span className="text-gray-500 font-medium">{t.termLabel} </span>
@@ -570,9 +570,9 @@ export default function Register() {
                 </div>
 
                 {/* 2-Column Grid: Course Table (Left) + Registered Sidebar (Right) */}
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px] xl:grid-cols-[1fr_360px] 2xl:grid-cols-[1fr_400px] gap-4 items-start w-full">
                     {/* LEFT — Main Course Table */}
-                    <div className="bg-white rounded shadow-sm border border-[#E8DCDC] overflow-hidden">
+                    <div className="w-full bg-white rounded-lg shadow-xs border border-[#E8DCDC] overflow-hidden">
                         <div className="bg-[#8C0000] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
                             <span>{t.catalogTitle}</span>
                             <span className="text-[11px] font-normal text-amber-200">
@@ -581,7 +581,7 @@ export default function Register() {
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full min-w-[760px] text-left border-collapse">
                                 <thead className="bg-[#8C0000] text-white font-bold text-[11px]">
                                     <tr>
                                         <th className="p-2 text-center border-r border-[#A31A1A] w-10">{t.colSTT}</th>
@@ -623,8 +623,8 @@ export default function Register() {
                     </div>
 
                     {/* RIGHT — Danh sách môn đã đăng ký (Sticky Sidebar) */}
-                    <div className="xl:sticky xl:top-4">
-                        <div className="bg-white rounded shadow-sm border border-emerald-200 overflow-hidden">
+                    <div className="w-full lg:sticky lg:top-14">
+                        <div className="w-full bg-white rounded-lg shadow-xs border border-emerald-200 overflow-hidden">
                             {/* Header */}
                             <div className="bg-[#005B7F] text-white px-4 py-2.5 font-bold text-xs flex justify-between items-center">
                                 <span className="flex items-center gap-1.5">
@@ -721,7 +721,7 @@ export default function Register() {
 
             {/* Bottom Right Floating Panel — "Các môn đang chọn" */}
             {selectedCount > 0 && (
-                <div className="fixed bottom-0 right-6 z-50 bg-[#222222]/95 text-white w-72 p-3 rounded-t-md shadow-2xl border border-gray-700 backdrop-blur-sm transition-all animate-bounce-short">
+                <div className="fixed bottom-0 right-3 sm:right-6 z-50 bg-[#222222]/95 text-white w-[calc(100vw-24px)] sm:w-80 p-3 rounded-t-lg shadow-2xl border border-gray-700 backdrop-blur-sm transition-all animate-bounce-short">
                     <div className="flex items-center justify-between font-bold text-yellow-400 border-b border-gray-600 pb-1.5 mb-2 text-xs">
                         <span>{t.selectedCoursesTitle}</span>
                         <span className="text-[10px] bg-yellow-900/60 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-700">

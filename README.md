@@ -106,12 +106,13 @@ EduPulse/
 └── .env.example
 ```
 
-## 👥 Team
+## 👥 Đội ngũ phát triển
 
 | Thành viên | Vai trò |
 |---|---|
-| A | Backend / Data |
-| B | Hạ tầng / DevOps |
+| Trương Minh Thành | Trưởng nhóm / Kiến trúc hệ thống & DevOps |
+| Lâm Tấn Đạt | Backend & Xử lý dữ liệu |
+| Lâm Vĩ Hoằng | Frontend & Tích hợp dịch vụ |
 
 ## 📄 License
 
